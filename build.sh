@@ -175,7 +175,7 @@ if (( rc )); then
 	rc="${#failed[@]}"
 
 	err "failed to update some packages (count=$rc)"
-	printf "%s\n" "${failed[@]}" >&2
+	print_array "${failed[@]}" >&2
 	exit 1
 else
 	rm -f "$FETCH_ERR_LIST"
@@ -192,6 +192,6 @@ set -e
 
 if (( rc )); then
 	err "failed to build some packages (count=$rc)"
-	printf "%s\n" "${failed[@]}" >&2
+	print_array "${failed[@]}" >&2
 	exit 1
 fi

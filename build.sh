@@ -50,6 +50,12 @@ update_one() {
 
 	setup_one "$@" || return
 
+	if [[ -e prepare.sh ]]; then
+		if ! ./prepare.sh; then
+			err "failed to execute prepare.sh: $pkg ($pkg_dir)"
+		fi
+	fi
+
 	if [[ -e .git ]]; then
 		local _asproot="${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}"
 		case "$(git config remote.origin.url)" in

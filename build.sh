@@ -12,6 +12,8 @@ MAKEPKG_CONF="$PKGBUILD_ROOT/makepkg.conf"
 
 FETCH_ERR_LIST="$WORKDIR_ROOT/errors.fetch"
 
+export UNATTENDED=1
+
 setup_one_pre() {
 	pkg="$1"
 	pkg_dir="$PKGBUILD_ROOT/$pkg"

@@ -5,8 +5,8 @@
 . /etc/profile || exit
 . $HOME/bin/lib/lib.sh || exit
 
-PKGBUILD_ROOT="$HOME/build"
-WORKDIR_ROOT="$HOME/build.work"
+PKGBUILD_ROOT="$HOME/pkgbuild"
+WORKDIR_ROOT="$HOME/pkgbuild.work"
 PKG_LIST="$PKGBUILD_ROOT/packages.txt"
 MAKEPKG_CONF="$PKGBUILD_ROOT/makepkg.conf"
 

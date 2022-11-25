@@ -12,9 +12,13 @@ MAKEPKG_CONF="$PKGBUILD_ROOT/makepkg.conf"
 
 FETCH_ERR_LIST="$WORKDIR_ROOT/errors.fetch"
 
-setup_one() {
+setup_one_pre() {
 	pkg="$1"
 	pkg_dir="$PKGBUILD_ROOT/$pkg"
+}
+
+setup_one() {
+	setup_one_pre "$@"
 
 	if ! [[ -d "$pkg_dir" ]]; then
 		err "pkgbase does not exist: $pkg ($pkg_dir)"
@@ -47,6 +51,20 @@ aur_list() {
 
 update_one() {
 	local pkg pkg_dir pkgbuild_dir
+
+	setup_one_pre "$@"
+
+	if ! [[ -d "$pkg_dir" ]]; then
+		cd "$(dirname "$pkg_dir")"
+		if asp list-all | grep -q -Fx "$pkg"; then
+			asp checkout "$pkg" || return
+		elif aur_list "$pkg" | grep -q -Fx "$pkg"; then
+			git clone "https://aur.archlinux.org/$pkg" || return
+		else
+			err "pkgbase could not be found: $pkg"
+			return 1
+		fi
+	fi
 
 	setup_one "$@" || return
 

@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 
 # HACK: fix up $PATH in case we are running in a clean environment
 # (/usr/bin/core_perl/pod2man)
@@ -6,14 +6,11 @@
 . $HOME/bin/lib/lib.sh || exit
 
 PKGBUILD_ROOT="$HOME/build"
-LOG_ROOT="$HOME/build.logs"
+WORKDIR_ROOT="$HOME/build.work"
 PKG_LIST="$PKGBUILD_ROOT/packages.txt"
 MAKEPKG_CONF="$PKGBUILD_ROOT/makepkg.conf"
 
-cat "$PKG_LIST" \
-	| sed -r 's|[[:space:]]*#.*||g' \
-	| grep -vE "^$" \
-	| readarray -t PKGBUILDS
+FETCH_ERR_LIST="$WORKDIR_ROOT/errors.fetch"
 
 setup_one() {
 	pkg="$1"
@@ -72,22 +69,116 @@ update_one() {
 	makepkg --config "$MAKEPKG_CONF" -od --noconfirm
 }
 
-rm -rf "$LOG_ROOT"/*.log
-mkdir -p "$LOG_ROOT"
+ARG_MODE_FETCH=0
+ARG_REBUILD=0
+ARGS_PASS=()
+ARGS_EXCLUDE=()
+ARGS_MAKEPKG=()
 
-rc=0
-failed=()
-set +e
-for p in "${PKGBUILDS[@]}"; do
-	update_one "$p"
-	if (( $? )); then (( rc += 1 )); failed+=( $p ); fi
+ARGS=$(getopt -o '' --long 'sub-fetch' -n "${0##*/}" -- "$@")
+eval set -- "$ARGS"
+unset ARGS
+
+while :; do
+	case "$1" in
+	'--sub-fetch')
+		ARG_MODE_FETCH=1
+		shift
+		;;
+	'--')
+		shift
+		break
+		;;
+	*)
+		die "Internal error"
+		;;
+	esac
 done
-set -e
+
+cat_if_exists() {
+	local arg
+	declare -a args
+	for arg; do
+		if [[ -e "$arg" ]]; then
+			args+=( "$arg" )
+		fi
+	done
+	if (( ${#args[@]} )); then
+		cat "${args[@]}"
+	fi
+}
+
+if (( ARG_MODE_FETCH )); then
+	if ! (( $# == 1 )); then
+		die "Bad usage: $0 --sub-fetch PACKAGE (expected 1 argument, got $#)"
+	fi
+
+	update_one "$1" && rc=0 || rc=$?
+	if (( rc )); then (
+		exec 9<>"$WORKDIR_ROOT/lock"
+		flock -n 9
+
+		{ cat_if_exists "$FETCH_ERR_LIST.new"; echo "$1"; } | sort -u | sponge "$FETCH_ERR_LIST.new"
+	) fi
+	exit $rc
+else
+	if (( $# )); then
+		PKGBUILDS=( "$@" )
+	else
+		cat "$PKG_LIST" \
+			| sed -r 's|[[:space:]]*#.*||g' \
+			| grep -vE "^$" \
+			| readarray -t PKGBUILDS
+	fi
+
+	print_array "${PKGBUILDS[@]}" | grep -Fvxf <(print_array "${ARGS_EXCLUDE[@]}") | readarray -t PKGBUILDS
+fi
+
+#
+# main
+#
+
+if [[ -e "$FETCH_ERR_LIST" ]]; then
+	fetch_err_stamp="$(stat -c '%Y' "$FETCH_ERR_LIST")"
+	now_stamp="$(date '+%s')"
+	packages_stamp="$(stat -c '%Y' "$PKG_LIST")"
+	if ! (( fetch_err_stamp > now_stamp - 3600 )); then
+		err "Ignoring fetch status file, older than 1h"
+		rm -f "$FETCH_ERR_LIST"
+	elif ! (( fetch_err_stamp > packages_stamp )); then
+		err "Ignoring fetch status file, older than packages.txt"
+		rm -f "$FETCH_ERR_LIST"
+	fi
+fi
+
+if [[ -e "$FETCH_ERR_LIST" ]]; then
+	cat "$FETCH_ERR_LIST" \
+		| { grep -Fvxf <(print_array "${ARGS_EXCLUDE[@]}") || true; } \
+		| readarray -t FETCH_PKGBUILDS
+	log "continuing incomplete update"
+	print_array "${FETCH_PKGBUILDS[@]}" >&2
+else
+	FETCH_PKGBUILDS=( "${PKGBUILDS[@]}" )
+fi
+
+
+if (( ${#FETCH_PKGBUILDS[@]} )); then
+	parallel --bar "$0 ${ARGS_PASS[*]} --sub-fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
+else
+	rc=0
+fi
 
 if (( rc )); then
+	mv "$FETCH_ERR_LIST.new" "$FETCH_ERR_LIST"
+	cat "$FETCH_ERR_LIST" | \
+		readarray -t failed
+	rc="${#failed[@]}"
+
 	err "failed to update some packages (count=$rc)"
 	printf "%s\n" "${failed[@]}" >&2
 	exit 1
+else
+	rm -f "$FETCH_ERR_LIST"
 fi
 
 rc=0

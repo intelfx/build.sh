@@ -35,13 +35,22 @@ setup_one() {
 		err "PKGBUILD does not exist: $pkg ($pkg_dir)"
 		return 1
 	fi
+
+	makepkg_args=( --config "$MAKEPKG_CONF" --noconfirm --skippgpcheck )
+	case "$pkg" in
+	zfs-dkms|bcachefs-tools-git)
+		makepkg_args+=( --cleanbuild )
+		;;
+	mutter-performance|gnome-shell-performance)
+		makepkg_args+=( --cleanbuild )
+		;;
+	esac
+	makepkg_args+=( "${ARGS_MAKEPKG[@]}" )
 }
 
-build_one() {
-	local pkg pkg_dir pkgbuild_dir
-	setup_one "$@" || return
-	cd "$pkgbuild_dir" || return
-	aur build --makepkg-conf "$MAKEPKG_CONF" --no-sync --margs -s,--noconfirm
+join() {
+	local IFS=,
+	echo "$*"
 }
 
 aur_list() {
@@ -49,8 +58,29 @@ aur_list() {
 		| jq -r 'if (.version == 5 and .type == "multiinfo") then .results[].Name else "AUR response: \(.)\n" | halt_error(1) end'
 }
 
+run_build() {
+	# TODO: improve to accept multiple makepkg args
+	local margs_extra="$1"
+	shift
+
+	aur build \
+		--pacman-conf "/etc/pacman.conf" \
+		--makepkg-conf "$MAKEPKG_CONF" \
+		--margs "$(join "${makepkg_args[@]}" "$margs_extra")" \
+		"$@"
+}
+
+build_one() {
+	local pkg pkg_dir pkgbuild_dir
+	declare -a makepkg_args
+	setup_one "$@" || return
+	cd "$pkgbuild_dir" || return
+	run_build '-s' --remove --new
+}
+
 update_one() {
 	local pkg pkg_dir pkgbuild_dir
+	declare -a makepkg_args
 
 	setup_one_pre "$@"
 
@@ -110,7 +140,8 @@ update_one() {
 	fi
 
 	cd "$pkgbuild_dir" || return
-	makepkg --config "$MAKEPKG_CONF" -od --noconfirm
+	#makepkg "${makepkg_args[@]}" -odd --noextract || return
+	run_build '-dd' --dry-run --pkgver || return
 }
 
 ARG_MODE_FETCH=0
@@ -119,7 +150,7 @@ ARGS_PASS=()
 ARGS_EXCLUDE=()
 ARGS_MAKEPKG=()
 
-ARGS=$(getopt -o '' --long 'sub-fetch' -n "${0##*/}" -- "$@")
+ARGS=$(getopt -o '' --long 'sub-fetch,margs:' -n "${0##*/}" -- "$@")
 eval set -- "$ARGS"
 unset ARGS
 
@@ -128,6 +159,10 @@ while :; do
 	'--sub-fetch')
 		ARG_MODE_FETCH=1
 		shift
+		;;
+	'--margs')
+		ARGS_MAKEPKG+=( "$2" )
+		shift 2
 		;;
 	'--')
 		shift

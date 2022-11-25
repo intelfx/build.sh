@@ -51,9 +51,28 @@ update_one() {
 	setup_one "$@" || return
 
 	if [[ -e .git ]]; then
+		local _asproot="${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}"
 		case "$(git config remote.origin.url)" in
-		"${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}")
-			asp update "$pkg"
+		"$_asproot")
+			# Since recently, invoking more than one `asp update` simultaneously breaks something within Git:
+			#
+			# From https://github.com/archlinux/svntogit-packages
+			#  * branch              packages/pulseaudio -> FETCH_HEAD
+			# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
+			# error: Unable to write upstream branch configuration
+			# hint:
+			# hint: After fixing the error cause you may try to fix up
+			# hint: the remote tracking information by invoking
+			# hint: "git branch --set-upstream-to=packages/packages/gstreamer-vaapi".
+			# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
+			# error: Unable to write upstream branch configuration
+			# hint:
+			# hint: After fixing the error cause you may try to fix up
+			# hint: the remote tracking information by invoking
+			# hint: "git branch --set-upstream-to=packages/packages/pulseaudio".
+			#
+			#asp update "$pkg" || return
+			flock -x -w 10 "$_asproot/.asp" asp update "$pkg" || return
 			;;
 		esac
 

@@ -79,6 +79,7 @@ build_one() {
 }
 
 update_one() {
+	eval "$(ltraps)"
 	local pkg pkg_dir pkgbuild_dir
 	declare -a makepkg_args
 
@@ -129,6 +130,25 @@ update_one() {
 			flock -x -w 10 "$_asproot/.asp" asp update "$pkg" || return
 			;;
 		esac
+
+		# rollback pkgver=, pkgrel= updates
+		local pkgbuild="$pkgbuild_dir/PKGBUILD"
+		if ! git diff-index --quiet HEAD -- "$pkgbuild"; then
+			local pkgbuild_diff="$(mktemp)"
+			local pkgbuild_bak="$(mktemp -p "$pkgbuild_dir")"
+			ltrap "rm -f '$pkgbuild_diff' '$pkgbuild_bak'"
+			cp -a "$pkgbuild" "$pkgbuild_bak"
+			(
+			set -eo pipefail
+			git diff "$pkgbuild" \
+				| sed -r \
+					-e ' /^\+(pkgver|pkgrel)=/d' \
+					-e 's/^\-(pkgver|pkgrel)=/ \1=/' \
+				>"$pkgbuild_diff"
+			git checkout -f "$pkgbuild"
+			git apply --recount --allow-empty "$pkgbuild_diff" || { cat "$pkgbuild_diff"; false; }
+			) || { mv "$pkgbuild_bak" "$pkgbuild"; exit 1; }
+		fi
 
 		if git rev-parse --verify --quiet '@{u}'; then
 			if ! git pull --rebase --autostash; then

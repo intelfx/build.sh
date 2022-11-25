@@ -81,6 +81,10 @@ build_one() {
 	declare -a makepkg_args
 	setup_one "$@" || return
 	cd "$pkgbuild_dir" || return
+
+	if ! { run_build '' --dry-run || true; } | grep -qE '^build:'; then
+		return
+	fi
 	run_build '-s' --remove --new
 }
 

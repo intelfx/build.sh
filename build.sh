@@ -58,6 +58,12 @@ aur_list() {
 		| jq -r 'if (.version == 5 and .type == "multiinfo") then .results[].Name else "AUR response: \(.)\n" | halt_error(1) end'
 }
 
+generate_srcinfo() {
+	if ! test -e .SRCINFO -a .SRCINFO -nt PKGBUILD; then
+		makepkg --printsrcinfo > .SRCINFO
+	fi
+}
+
 run_build() {
 	# TODO: improve to accept multiple makepkg args
 	local margs_extra="$1"
@@ -162,6 +168,39 @@ update_one() {
 	cd "$pkgbuild_dir" || return
 	#makepkg "${makepkg_args[@]}" -odd --noextract || return
 	run_build '-dd' --dry-run --pkgver || return
+
+	# pkgrel= was reset above
+	# bump pkgrel= if --rebuild is indicated, or match to repo contents otherwise (to prevent building a package with a lower pkgrel than repo contents)
+
+	generate_srcinfo
+
+	local pkg_old pkg_old_ver pkg_old_rel
+	aur repo --table | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4 }' | head -n1 | read pkg_old
+	pkg_old_rel="${pkg_old##*-}"
+	pkg_old_ver="${pkg_old%-*}"
+	log "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"
+
+	local pkg_cur pkg_cur_ver pkg_cur_rel
+	# FIXME: proper .SRCINFO parser
+	# FIXME: split package handling
+	sed -nr 's|^\tepoch = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_epoch
+	sed -nr 's|^\tpkgver = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_ver
+	sed -nr 's|^\tpkgrel = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_rel
+	pkg_cur_ver="${pkg_cur_epoch:+$pkg_cur_epoch:}$pkg_cur_ver"
+	pkg_cur="$pkg_cur_ver-$pkg_cur_rel"
+	log "$pkg: PKGBUILD: pkgver=$pkg_cur_ver, pkgrel=$pkg_cur_rel"
+
+	local pkg_new_rel="$pkg_old_rel"
+	if [[ "$pkg_old_ver" == "$pkg_cur_ver" ]]; then
+		if (( pkg_new_rel > pkg_cur_rel )); then
+			log "$pkg: PKGBUILD: same pkgver, setting pkgrel=$pkg_new_rel"
+			sed -r "s|^pkgrel=.+$|pkgrel=$pkg_new_rel|" -i PKGBUILD
+		else
+			log "$pkg: PKGBUILD: same pkgver, leaving pkgrel=$pkg_cur_rel"
+		fi
+	else
+		log "$pkg: PKGBUILD: updated pkgver, leaving pkgrel=$pkg_cur_rel"
+	fi
 }
 
 ARG_MODE_FETCH=0

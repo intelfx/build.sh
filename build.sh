@@ -192,6 +192,9 @@ update_one() {
 
 	local pkg_new_rel="$pkg_old_rel"
 	if [[ "$pkg_old_ver" == "$pkg_cur_ver" ]]; then
+		if (( ARG_REBUILD )); then
+			pkg_new_rel="$(( pkg_old_rel + 1 ))"
+		fi
 		if (( pkg_new_rel > pkg_cur_rel )); then
 			log "$pkg: PKGBUILD: same pkgver, setting pkgrel=$pkg_new_rel"
 			sed -r "s|^pkgrel=.+$|pkgrel=$pkg_new_rel|" -i PKGBUILD
@@ -209,7 +212,7 @@ ARGS_PASS=()
 ARGS_EXCLUDE=()
 ARGS_MAKEPKG=()
 
-ARGS=$(getopt -o '' --long 'sub-fetch,exclude:,margs:' -n "${0##*/}" -- "$@")
+ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:' -n "${0##*/}" -- "$@")
 eval set -- "$ARGS"
 unset ARGS
 
@@ -217,6 +220,11 @@ while :; do
 	case "$1" in
 	'--sub-fetch')
 		ARG_MODE_FETCH=1
+		shift
+		;;
+	'--rebuild')
+		ARG_REBUILD=1
+		ARGS_PASS+=( --rebuild )
 		shift
 		;;
 	'--exclude')

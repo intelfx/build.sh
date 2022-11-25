@@ -80,6 +80,7 @@ update_one() {
 			if ! git pull --rebase --autostash; then
 				git rebase --abort || true
 				err "failed to update: $pkg ($pkg_dir)"
+				return 1
 			fi
 		fi
 	fi

@@ -150,7 +150,7 @@ ARGS_PASS=()
 ARGS_EXCLUDE=()
 ARGS_MAKEPKG=()
 
-ARGS=$(getopt -o '' --long 'sub-fetch,margs:' -n "${0##*/}" -- "$@")
+ARGS=$(getopt -o '' --long 'sub-fetch,exclude:,margs:' -n "${0##*/}" -- "$@")
 eval set -- "$ARGS"
 unset ARGS
 
@@ -159,6 +159,10 @@ while :; do
 	'--sub-fetch')
 		ARG_MODE_FETCH=1
 		shift
+		;;
+	'--exclude')
+		readarray -t -O "${#ARGS_EXCLUDE[@]}" ARGS_EXCLUDE <<< "${2//,/$'\n'}"
+		shift 2
 		;;
 	'--margs')
 		ARGS_MAKEPKG+=( "$2" )

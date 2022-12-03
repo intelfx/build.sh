@@ -100,9 +100,9 @@ update_one() {
 
 	if ! [[ -d "$pkg_dir" ]]; then
 		cd "$(dirname "$pkg_dir")"
-		if asp list-all | grep -q -Fx "$pkg"; then
+		if asp list-all | sponge | grep -q -Fx "$pkg"; then
 			asp checkout "$pkg" || return
-		elif aur_list "$pkg" | grep -q -Fx "$pkg"; then
+		elif aur_list "$pkg" | sponge | grep -q -Fx "$pkg"; then
 			git clone "https://aur.archlinux.org/$pkg" || return
 		else
 			err "pkgbase could not be found: $pkg"

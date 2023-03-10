@@ -138,6 +138,12 @@ update_one() {
 			) || { mv "$pkgbuild_bak" "$pkgbuild"; exit 1; }
 		fi
 
+		# FIXME use different pull strategies
+		case "$pkg" in
+		linux|linux-tools)
+			local ARG_NOPULL=1 ;;
+		esac
+
 		# pull PKGBUILD tree (if there is any)
 		if (( ARG_NOPULL == 0 )) && git rev-parse --verify --quiet '@{u}' &>/dev/null; then
 			local upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"

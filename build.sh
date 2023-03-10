@@ -119,31 +119,6 @@ update_one() {
 	fi
 
 	if [[ -e .git ]]; then
-		local _asproot="${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}"
-		case "$(git config remote.origin.url)" in
-		"$_asproot")
-			# Since recently, invoking more than one `asp update` simultaneously breaks something within Git:
-			#
-			# From https://github.com/archlinux/svntogit-packages
-			#  * branch              packages/pulseaudio -> FETCH_HEAD
-			# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
-			# error: Unable to write upstream branch configuration
-			# hint:
-			# hint: After fixing the error cause you may try to fix up
-			# hint: the remote tracking information by invoking
-			# hint: "git branch --set-upstream-to=packages/packages/gstreamer-vaapi".
-			# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
-			# error: Unable to write upstream branch configuration
-			# hint:
-			# hint: After fixing the error cause you may try to fix up
-			# hint: the remote tracking information by invoking
-			# hint: "git branch --set-upstream-to=packages/packages/pulseaudio".
-			#
-			#asp update "$pkg" || return
-			flock -x -w 10 "$_asproot/.asp" asp update "$pkg" || return
-			;;
-		esac
-
 		# rollback pkgver=, pkgrel= updates
 		local pkgbuild="$pkgbuild_dir/PKGBUILD"
 		if ! git diff-index --quiet HEAD -- "$pkgbuild"; then
@@ -163,7 +138,37 @@ update_one() {
 			) || { mv "$pkgbuild_bak" "$pkgbuild"; exit 1; }
 		fi
 
-		if git rev-parse --verify --quiet '@{u}'; then
+		# pull PKGBUILD tree (if there is any)
+		if (( ARG_NOPULL == 0 )) && git rev-parse --verify --quiet '@{u}' &>/dev/null; then
+			local upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"
+			local remote="${upstream%%/*}"
+			local _asproot="${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}"
+			case "$(git config remote.$remote.url)" in
+			"$_asproot")
+				# resolve the true package name we are tracking in ABS
+				local asppkg="${upstream##*/}"
+				# Since recently, invoking more than one `asp update` simultaneously breaks something within Git:
+				#
+				# From https://github.com/archlinux/svntogit-packages
+				#  * branch              packages/pulseaudio -> FETCH_HEAD
+				# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
+				# error: Unable to write upstream branch configuration
+				# hint:
+				# hint: After fixing the error cause you may try to fix up
+				# hint: the remote tracking information by invoking
+				# hint: "git branch --set-upstream-to=packages/packages/gstreamer-vaapi".
+				# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
+				# error: Unable to write upstream branch configuration
+				# hint:
+				# hint: After fixing the error cause you may try to fix up
+				# hint: the remote tracking information by invoking
+				# hint: "git branch --set-upstream-to=packages/packages/pulseaudio".
+				#
+				#asp update "$pkg" || return
+				flock -x -w 10 "$_asproot/.asp" asp update "$asppkg" || return
+				;;
+			esac
+
 			if ! git pull --rebase --autostash; then
 				git rebase --abort || true
 				err "failed to update: $pkg ($pkg_dir)"
@@ -215,16 +220,22 @@ update_one() {
 
 ARG_MODE_FETCH=0
 ARG_REBUILD=0
+ARG_NOPULL=0
 ARGS_PASS=()
 ARGS_EXCLUDE=()
 ARGS_MAKEPKG=()
 
-ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:' -n "${0##*/}" -- "$@")
+ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:,no-pull' -n "${0##*/}" -- "$@")
 eval set -- "$ARGS"
 unset ARGS
 
 while :; do
 	case "$1" in
+	'--no-pull')
+		ARG_NOPULL=1
+		ARGS_PASS+=( --no-pull )
+		shift
+		;;
 	'--sub-fetch')
 		ARG_MODE_FETCH=1
 		shift

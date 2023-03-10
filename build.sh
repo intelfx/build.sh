@@ -179,7 +179,7 @@ update_one() {
 
 	cd "$pkgbuild_dir" || return
 	#makepkg "${makepkg_args[@]}" -odd --noextract || return
-	run_build '-dd' --dry-run --pkgver || return
+	run_build '-dd' --dry-run --pkgver >/dev/null || return
 
 	# pkgrel= was reset above
 	# bump pkgrel= if --rebuild is indicated, or match to repo contents otherwise (to prevent building a package with a lower pkgrel than repo contents)

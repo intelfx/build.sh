@@ -40,6 +40,7 @@ setup_one() {
 	fi
 
 	makepkg_args=( --config "$MAKEPKG_CONF" --noconfirm --skippgpcheck )
+	# FIXME read from package properties
 	case "$pkg" in
 	zfs-dkms|bcachefs-tools-git)
 		makepkg_args+=( --cleanbuild )

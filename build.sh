@@ -83,6 +83,16 @@ run_build() {
 		"$@"
 }
 
+run_srcver() {
+	# TODO: improve to accept multiple makepkg args
+	local margs_extra="$1"
+	shift
+
+	aur srcver \
+		--margs "$(join --config "$MAKEPKG_CONF" "${makepkg_args[@]}" "$margs_extra")" \
+		"$@"
+}
+
 build_one() {
 	local pkg pkg_dir pkgbuild_dir
 	declare -a makepkg_args
@@ -189,7 +199,7 @@ update_one() {
 
 	cd "$pkgbuild_dir" || return
 	#makepkg "${makepkg_args[@]}" -odd --noextract || return
-	run_build '-dd' --dry-run --pkgver >/dev/null || return
+	run_srcver || return
 
 	# pkgrel= was reset above
 	# bump pkgrel= if --rebuild is indicated, or match to repo contents otherwise (to prevent building a package with a lower pkgrel than repo contents)

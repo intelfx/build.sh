@@ -48,6 +48,9 @@ setup_one() {
 	mutter-performance|gnome-shell-performance)
 		makepkg_args+=( --cleanbuild )
 		;;
+	opensnitch)
+		makepkg_args+=( --cleanbuild )
+		;;
 	esac
 	makepkg_args+=( "${ARGS_MAKEPKG[@]}" )
 }

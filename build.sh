@@ -210,7 +210,7 @@ update_one() {
 	aur repo --table | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4 }' | head -n1 | read pkg_old
 	pkg_old_rel="${pkg_old##*-}"
 	pkg_old_ver="${pkg_old%-*}"
-	log "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"
+	dbg "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"
 
 	local pkg_cur pkg_cur_ver pkg_cur_rel
 	# FIXME: proper .SRCINFO parser
@@ -220,7 +220,7 @@ update_one() {
 	sed -nr 's|^\tpkgrel = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_rel
 	pkg_cur_ver="${pkg_cur_epoch:+$pkg_cur_epoch:}$pkg_cur_ver"
 	pkg_cur="$pkg_cur_ver-$pkg_cur_rel"
-	log "$pkg: PKGBUILD: pkgver=$pkg_cur_ver, pkgrel=$pkg_cur_rel"
+	dbg "$pkg: PKGBUILD: pkgver=$pkg_cur_ver, pkgrel=$pkg_cur_rel"
 
 	local pkg_new_rel="$pkg_old_rel"
 	if [[ "$pkg_old_ver" == "$pkg_cur_ver" ]]; then
@@ -228,13 +228,13 @@ update_one() {
 			pkg_new_rel="$(( pkg_old_rel + 1 ))"
 		fi
 		if (( pkg_new_rel > pkg_cur_rel )); then
-			log "$pkg: PKGBUILD: same pkgver, setting pkgrel=$pkg_new_rel"
+			log "$pkg: PKGBUILD: same pkgver=$pkg_cur_ver, setting pkgrel=$pkg_new_rel"
 			sed -r "s|^pkgrel=.+$|pkgrel=$pkg_new_rel|" -i PKGBUILD
 		else
-			log "$pkg: PKGBUILD: same pkgver, leaving pkgrel=$pkg_cur_rel"
+			dbg "$pkg: PKGBUILD: same pkgver, leaving pkgrel=$pkg_cur_rel"
 		fi
 	else
-		log "$pkg: PKGBUILD: updated pkgver, leaving pkgrel=$pkg_cur_rel"
+		dbg "$pkg: PKGBUILD: updated pkgver, leaving pkgrel=$pkg_cur_rel"
 	fi
 }
 

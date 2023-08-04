@@ -3,7 +3,8 @@
 # HACK: fix up $PATH in case we are running in a clean environment
 # (/usr/bin/core_perl/pod2man)
 . /etc/profile || exit
-. $HOME/.profile || exit
+#. $HOME/.profile || exit
+. $HOME/.profile.pkgbuild || exit
 . $HOME/bin/lib/lib.sh || exit
 
 PKGBUILD_ROOT="$HOME/pkgbuild"

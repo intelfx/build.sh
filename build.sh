@@ -161,10 +161,15 @@ update_one() {
 			git checkout -f "$srcinfo"
 		fi
 
-		# FIXME use different pull strategies
 		case "$pkg" in
 		linux|linux-tools)
-			local ARG_NOPULL=1 ;;
+			local git_pull=( git pull --no-ff --no-rebase )
+			local git_pull_abort=( git merge --abort )
+			;;
+		*)
+			local git_pull=( git pull --no-ff --rebase )
+			local git_pull_abort=( git rebase --abort )
+			;;
 		esac
 
 		# pull PKGBUILD tree (if there is any)
@@ -198,8 +203,9 @@ update_one() {
 				;;
 			esac
 
-			if ! git pull --rebase --autostash; then
-				git rebase --abort || true
+			if ! "${git_pull[@]}" --autostash; then
+				"${git_pull_abort[@]}" ||:
+				git stash pop ||:
 				err "failed to update: $pkg ($pkg_dir)"
 				return 1
 			fi

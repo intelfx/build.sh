@@ -149,8 +149,9 @@ update_one() {
 					-e 's/^\-(pkgver|pkgrel)=/ \1=/' \
 				>"$pkgbuild_diff"
 			git checkout -f "$pkgbuild"
-			git apply --recount --allow-empty "$pkgbuild_diff" || { cat "$pkgbuild_diff"; false; }
-			) || { mv "$pkgbuild_bak" "$pkgbuild"; exit 1; }
+			git apply --recount --allow-empty "$pkgbuild_diff"
+			) || { cat "$pkgbuild_diff"; mv "$pkgbuild_bak" "$pkgbuild"; return 1; }
+			lruntrap
 		fi
 
 		# FIXME use different pull strategies

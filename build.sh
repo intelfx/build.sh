@@ -291,6 +291,7 @@ while :; do
 		;;
 	'--margs')
 		ARGS_MAKEPKG+=( "$2" )
+		ARGS_PASS+=( --margs "$2" )
 		shift 2
 		;;
 	'--')

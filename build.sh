@@ -103,7 +103,7 @@ build_one() {
 	if ! { run_build '' --dry-run || true; } | grep -qE '^build:'; then
 		return
 	fi
-	run_build '-s' --remove --new
+	run_build '-es' --remove --new
 }
 
 update_one() {

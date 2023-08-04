@@ -259,13 +259,18 @@ ARG_NOPULL=0
 ARGS_PASS=()
 ARGS_EXCLUDE=()
 ARGS_MAKEPKG=()
+ARG_RESET=0
 
-ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:,no-pull' -n "${0##*/}" -- "$@")
+ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:,no-pull,reset' -n "${0##*/}" -- "$@")
 eval set -- "$ARGS"
 unset ARGS
 
 while :; do
 	case "$1" in
+	'--reset')
+		ARG_RESET=1
+		shift
+		;;
 	'--no-pull')
 		ARG_NOPULL=1
 		ARGS_PASS+=( --no-pull )
@@ -310,6 +315,11 @@ cat_if_exists() {
 		cat "${args[@]}"
 	fi
 }
+
+if (( ARG_RESET )); then
+	rm -rf "$WORKDIR_ROOT"
+fi
+mkdir -p "$WORKDIR_ROOT"
 
 if (( ARG_MODE_FETCH )); then
 	if ! (( $# == 1 )); then

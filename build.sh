@@ -153,6 +153,13 @@ update_one() {
 			) || { cat "$pkgbuild_diff"; mv "$pkgbuild_bak" "$pkgbuild"; return 1; }
 			lruntrap
 		fi
+		# rollback local modifications to .SRCINFO
+		local srcinfo="$pkgbuild_dir/.SRCINFO"
+		if git ls-files --error-unmatch "$srcinfo" &>/dev/null && \
+		 ! git diff --quiet HEAD -- "$srcinfo"; then
+			git reset "$srcinfo"
+			git checkout -f "$srcinfo"
+		fi
 
 		# FIXME use different pull strategies
 		case "$pkg" in

@@ -214,7 +214,6 @@ update_one() {
 	fi
 
 	cd "$pkgbuild_dir" || return
-	#makepkg "${makepkg_args[@]}" -odd --noextract || return
 	run_srcver || return
 
 	# pkgrel= was reset above

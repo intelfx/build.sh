@@ -155,8 +155,9 @@ update_one() {
 		fi
 		# rollback local modifications to .SRCINFO
 		local srcinfo="$pkgbuild_dir/.SRCINFO"
-		if git ls-files --error-unmatch "$srcinfo" &>/dev/null && \
-		 ! git diff --quiet HEAD -- "$srcinfo"; then
+		if ! git ls-files --error-unmatch "$srcinfo" &>/dev/null; then
+			rm -f "$srcinfo"
+		elif ! git diff --quiet HEAD -- "$srcinfo"; then
 			git reset "$srcinfo"
 			git checkout -f "$srcinfo"
 		fi

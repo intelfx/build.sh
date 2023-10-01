@@ -95,6 +95,8 @@ run_srcver() {
 		--margs --config,"$MAKEPKG_CONF" \
 		--margs "$(join "${makepkg_args_prepare[@]}")" \
 		"$@"
+	# `makepkg --clean` only removes $BUILDDIR/$pkgbase/{src,pkg}/*, but not the dir itself
+	find "$SCRATCH_ROOT" -mindepth 1 -maxdepth 2 -depth -type d -empty -delete
 }
 
 build_one() {
@@ -110,6 +112,8 @@ build_one() {
 		-c -T \
 		--bind-rw "$SCRATCH_ROOT":/build \
 		--remove --new
+	# `makepkg --clean` only removes $BUILDDIR/$pkgbase/{src,pkg}/*, but not the dir itself
+	find "$SCRATCH_ROOT" -mindepth 1 -maxdepth 2 -depth -type d -empty -delete
 }
 
 update_one() {

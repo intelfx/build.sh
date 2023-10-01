@@ -236,6 +236,7 @@ update_one() {
 	sed -nr 's|^\tpkgrel = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_rel
 	pkg_cur_ver="${pkg_cur_epoch:+$pkg_cur_epoch:}$pkg_cur_ver"
 	pkg_cur="$pkg_cur_ver-$pkg_cur_rel"
+	dbg "$pkg:     repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel"
 	dbg "$pkg: PKGBUILD: pkgver=$pkg_cur_ver, pkgrel=$pkg_cur_rel"
 
 	local pkg_new_rel="$pkg_old_rel"

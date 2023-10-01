@@ -49,7 +49,9 @@ setup_one() {
 		# non-clean builds
 		;;
 	*)
-		makepkg_args_prepare=( --cleanbuild --clean )
+		# --clean does not work on `makepkg -o`
+		makepkg_args_prepare=( --cleanbuild )
+		# optionally drop --cleanbuild for a bit more spead and a bit less isolation
 		makepkg_args_build=( --cleanbuild --clean )
 		;;
 	esac

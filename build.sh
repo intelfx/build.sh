@@ -8,9 +8,12 @@
 . $HOME/bin/lib/lib.sh || exit
 
 PKGBUILD_ROOT="$HOME/pkgbuild"
-WORKDIR_ROOT="$HOME/pkgbuild.work"
+WORKDIR_ROOT="$HOME/.pkgbuild.work"
 PKG_LIST="$PKGBUILD_ROOT/packages.txt"
-MAKEPKG_CONF="$PKGBUILD_ROOT/makepkg.conf"
+MAKEPKG_CONF="/etc/aurutils/makepkg-custom.conf"
+PACMAN_CONF="/etc/aurutils/pacman-custom.conf"
+REPO_NAME="custom"
+SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
 
 FETCH_ERR_LIST="$WORKDIR_ROOT/errors.fetch"
 
@@ -40,20 +43,18 @@ setup_one() {
 		return 1
 	fi
 
-	makepkg_args=( --config "$MAKEPKG_CONF" --noconfirm --skippgpcheck )
 	# FIXME read from package properties
 	case "$pkg" in
-	zfs-dkms|bcachefs-tools-git)
-		makepkg_args+=( --cleanbuild )
+	linux|linux-tools)
+		# non-clean builds
 		;;
-	mutter-performance|gnome-shell-performance)
-		makepkg_args+=( --cleanbuild )
-		;;
-	opensnitch)
-		makepkg_args+=( --cleanbuild )
+	*)
+		makepkg_args_prepare=( --cleanbuild --clean )
+		makepkg_args_build=( --cleanbuild --clean )
 		;;
 	esac
-	makepkg_args+=( "${ARGS_MAKEPKG[@]}" )
+	makepkg_args_prepare+=( "${ARGS_MAKEPKG[@]}" )
+	makepkg_args_build+=( "${ARGS_MAKEPKG[@]}" )
 }
 
 join() {
@@ -73,43 +74,46 @@ generate_srcinfo() {
 }
 
 run_build() {
-	# TODO: improve to accept multiple makepkg args
-	local margs_extra="$1"
-	shift
-
 	aur build \
-		--pacman-conf "/etc/pacman.conf" \
+		-d "$REPO_NAME" \
+		--pacman-conf "$PACMAN_CONF" \
 		--makepkg-conf "$MAKEPKG_CONF" \
-		--margs "$(join "${makepkg_args[@]}" "$margs_extra")" \
+		--margs "$(join "${makepkg_args_build[@]}")" \
 		"$@"
 }
 
 run_srcver() {
-	# TODO: improve to accept multiple makepkg args
-	local margs_extra="$1"
-	shift
+	# XXX: gross hack to skip repeatedly extracting packages that do not deserve it
+	# XXX: however, append --verifysource to force makepkg to fetch the sources (if any)
+	if ! grep -qE '^ *(function *)?pkgver *\( *\)' PKGBUILD; then
+		makepkg_args_prepare+=( --verifysource --noextract )
+	fi
 
 	aur srcver \
-		--margs "$(join --config "$MAKEPKG_CONF" "${makepkg_args[@]}" "$margs_extra")" \
+		--margs --config,"$MAKEPKG_CONF" \
+		--margs "$(join "${makepkg_args_prepare[@]}")" \
 		"$@"
 }
 
 build_one() {
 	local pkg pkg_dir pkgbuild_dir
-	declare -a makepkg_args
+	declare -a makepkg_args_prepare makepkg_args_build
 	setup_one "$@" || return
 	cd "$pkgbuild_dir" || return
 
-	if ! { run_build '' --dry-run || true; } | grep -qE '^build:'; then
+	if ! { run_build --dry-run || true; } | grep -qE '^build:'; then
 		return
 	fi
-	run_build '-es' --remove --new
+	run_build \
+		-c -T \
+		--bind-rw "$SCRATCH_ROOT":/build \
+		--remove --new
 }
 
 update_one() {
 	eval "$(ltraps)"
 	local pkg pkg_dir pkgbuild_dir
-	declare -a makepkg_args
+	declare -a makepkg_args_prepare makepkg_args_build
 
 	setup_one_pre "$@"
 

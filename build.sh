@@ -75,6 +75,13 @@ generate_srcinfo() {
 	fi
 }
 
+run_cleanup() {
+	# makepkg sometimes leaves $pkgdir with mode 0111, breaking the below command
+	find "$SCRATCH_ROOT" -mindepth 2 -maxdepth 2 -type d -name pkg -exec chmod 0755 {} \;
+	# `makepkg --clean` only removes $BUILDDIR/$pkgbase/{src,pkg}/*, but not the dir itself
+	find "$SCRATCH_ROOT" -mindepth 1 -maxdepth 2 -depth -type d -empty -delete
+}
+
 run_build() {
 	aur build \
 		-d "$REPO_NAME" \
@@ -95,8 +102,6 @@ run_srcver() {
 		--margs --config,"$MAKEPKG_CONF" \
 		--margs "$(join "${makepkg_args_prepare[@]}")" \
 		"$@"
-	# `makepkg --clean` only removes $BUILDDIR/$pkgbase/{src,pkg}/*, but not the dir itself
-	find "$SCRATCH_ROOT" -mindepth 1 -maxdepth 2 -depth -type d -empty -delete
 }
 
 build_one() {
@@ -112,8 +117,6 @@ build_one() {
 		-c -T \
 		--bind-rw "$SCRATCH_ROOT":/build \
 		--remove --new
-	# `makepkg --clean` only removes $BUILDDIR/$pkgbase/{src,pkg}/*, but not the dir itself
-	find "$SCRATCH_ROOT" -mindepth 1 -maxdepth 2 -depth -type d -empty -delete
 }
 
 update_one() {
@@ -389,6 +392,7 @@ fi
 
 if (( ${#FETCH_PKGBUILDS[@]} )); then
 	parallel --bar "$0 ${ARGS_PASS[*]} --sub-fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
+	run_cleanup
 else
 	rc=0
 fi
@@ -414,6 +418,7 @@ for p in "${PKGBUILDS[@]}"; do
 	if (( $? )); then (( rc += 1 )); failed+=( $p ); fi
 done
 set -e
+run_cleanup
 
 if (( rc )); then
 	err "failed to build some packages (count=$rc)"

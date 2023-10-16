@@ -110,7 +110,7 @@ build_one() {
 	setup_one "$@" || return
 	cd "$pkgbuild_dir" || return
 
-	if ! { run_build --dry-run || true; } | grep -qE '^build:'; then
+	if ! { run_build --dry-run || true; } | sponge | grep -qE '^build:'; then
 		return
 	fi
 	run_build \

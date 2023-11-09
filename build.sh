@@ -49,12 +49,18 @@ setup_one() {
 		# non-clean builds
 		;;
 	*)
+		# build in a container
+		aurbuild_args+=(
+			-c -T
+			--bind-rw "$SCRATCH_ROOT":/build
+		)
 		# optionally drop --clean here...
 		makepkg_args_prepare=( --cleanbuild --clean )
 		# ...and --cleanbuild here for a bit more spead and a bit less isolation
 		makepkg_args_build=( --cleanbuild --clean )
 		;;
 	esac
+	aurbuild_args+=( --remove --new )
 	makepkg_args_prepare+=( "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${ARGS_MAKEPKG[@]}" )
 }
@@ -80,6 +86,7 @@ run_build() {
 		-d "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
 		--makepkg-conf "$MAKEPKG_CONF" \
+		"${aurbuild_args[@]}" \
 		--margs "$(join "${makepkg_args_build[@]}")" \
 		"$@"
 }
@@ -99,23 +106,20 @@ run_srcver() {
 
 build_one() {
 	local pkg pkg_dir pkgbuild_dir
-	declare -a makepkg_args_prepare makepkg_args_build
+	declare -a aurbuild_args makepkg_args_prepare makepkg_args_build
 	setup_one "$@" || return
 	cd "$pkgbuild_dir" || return
 
 	if ! { run_build --dry-run || true; } | sponge | grep -qE '^build:'; then
 		return
 	fi
-	run_build \
-		-c -T \
-		--bind-rw "$SCRATCH_ROOT":/build \
-		--remove --new
+	run_build
 }
 
 update_one() {
 	eval "$(ltraps)"
 	local pkg pkg_dir pkgbuild_dir
-	declare -a makepkg_args_prepare makepkg_args_build
+	declare -a aurbuild_args makepkg_args_prepare makepkg_args_build
 
 	setup_one_pre "$@"
 

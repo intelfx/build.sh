@@ -81,6 +81,18 @@ generate_srcinfo() {
 	fi
 }
 
+run_build_dry() {
+	# skip $aurbuild_args and $makepkg_args_build
+	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
+	aur build \
+		-d "$REPO_NAME" \
+		--pacman-conf "$PACMAN_CONF" \
+		--makepkg-conf "$MAKEPKG_CONF" \
+		--dry-run \
+		"$@" \
+	|| true
+}
+
 run_build() {
 	aur build \
 		-d "$REPO_NAME" \
@@ -110,7 +122,7 @@ build_one() {
 	setup_one "$@" || return
 	cd "$pkgbuild_dir" || return
 
-	if ! { run_build --dry-run || true; } | sponge | grep -qE '^build:'; then
+	if ! run_build_dry | sponge | grep -qE '^build:'; then
 		return
 	fi
 	run_build

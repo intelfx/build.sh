@@ -152,6 +152,7 @@ update_one() {
 	if [[ -e prepare.sh ]]; then
 		if ! ./prepare.sh; then
 			err "failed to execute prepare.sh: $pkg ($pkg_dir)"
+			return 1
 		fi
 	fi
 
@@ -284,7 +285,7 @@ ARGS_EXCLUDE=()
 ARGS_MAKEPKG=()
 ARG_RESET=0
 
-ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:,no-pull,reset' -n "${0##*/}" -- "$@")
+ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:,no-pull,reset' -n "${0##*/}" -- "$@") || die "Invalid usage"
 eval set -- "$ARGS"
 unset ARGS
 
@@ -332,54 +333,49 @@ while :; do
 	esac
 done
 
-cat_if_exists() {
-	local arg
-	declare -a args
-	for arg; do
-		if [[ -e "$arg" ]]; then
-			args+=( "$arg" )
-		fi
-	done
-	if (( ${#args[@]} )); then
-		cat "${args[@]}"
-	fi
-}
-
-if (( ARG_RESET )); then
-	rm -rf "$WORKDIR_ROOT"
-fi
-mkdir -p "$WORKDIR_ROOT"
+#
+# subroutines
+#
 
 if (( ARG_MODE_FETCH )); then
 	if ! (( $# == 1 )); then
-		die "Bad usage: $0 --sub-fetch PACKAGE (expected 1 argument, got $#)"
+		die "Bad usage: $0 ${@@Q}"
 	fi
 
-	update_one "$1" && rc=0 || rc=$?
+	rc=0
+	set +e
+	update_one "$1"
+	rc=$?
+	set -e
+
 	if (( rc )); then (
 		exec 9<>"$WORKDIR_ROOT/lock"
 		flock -n 9
-
-		{ cat_if_exists "$FETCH_ERR_LIST.new"; echo "$1"; } | sort -u | sponge "$FETCH_ERR_LIST.new"
+		echo "$1" >> "$FETCH_ERR_LIST.new"
 	) fi
 	exit $rc
-else
-	if (( $# )); then
-		PKGBUILDS=( "$@" )
-	else
-		cat "$PKG_LIST" \
-			| sed -r 's|[[:space:]]*#.*||g' \
-			| grep -vE "^$" \
-			| readarray -t PKGBUILDS
-	fi
-
-	print_array "${PKGBUILDS[@]}" | grep -Fvxf <(print_array "${ARGS_EXCLUDE[@]}") | readarray -t PKGBUILDS
 fi
 
 #
 # main
 #
 
+if (( ARG_RESET )); then
+	rm -rf "$WORKDIR_ROOT"
+fi
+
+if (( $# )); then
+	PKGBUILDS=( "$@" )
+else
+	cat "$PKG_LIST" \
+		| sed -r 's|[[:space:]]*#.*||g' \
+		| grep -vE "^$" \
+		| readarray -t PKGBUILDS
+fi
+
+print_array "${PKGBUILDS[@]}" | grep -Fvxf <(print_array "${ARGS_EXCLUDE[@]}") | readarray -t PKGBUILDS
+
+mkdir -p "$WORKDIR_ROOT"
 if [[ -e "$FETCH_ERR_LIST" ]]; then
 	fetch_err_stamp="$(stat -c '%Y' "$FETCH_ERR_LIST")"
 	now_stamp="$(date '+%s')"
@@ -404,24 +400,30 @@ else
 fi
 
 
+rc=0
+set +e
 if (( ${#FETCH_PKGBUILDS[@]} )); then
 	parallel --bar "$0 ${ARGS_PASS[*]@Q} --sub-fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
 else
-	rc=0
+	rc=$?
 fi
+set -e
 
-if (( rc )); then
+if (( rc )) && [[ -e "$FETCH_ERR_LIST.new" ]]; then
 	mv "$FETCH_ERR_LIST.new" "$FETCH_ERR_LIST"
-	cat "$FETCH_ERR_LIST" | \
-		readarray -t failed
+	cat "$FETCH_ERR_LIST" \
+		| sort -u \
+		| readarray -t failed
 	rc="${#failed[@]}"
 
 	err "failed to update some packages (count=$rc)"
 	print_array "${failed[@]}" >&2
 	exit 1
-else
-	rm -f "$FETCH_ERR_LIST"
+elif (( rc )); then
+	err "failed to run fetch"
+	exit 1
 fi
+rm -f "$FETCH_ERR_LIST"{,.new}
 
 rc=0
 failed=()

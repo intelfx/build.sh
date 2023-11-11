@@ -288,25 +288,30 @@ ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:,no-pull,reset' -n 
 eval set -- "$ARGS"
 unset ARGS
 
+pass() {
+	local n="$1"
+	shift
+	ARGS_PASS+=( "${@:1:$n}" )
+}
 while :; do
 	case "$1" in
 	'--reset')
 		ARG_RESET=1
-		shift
+		shift 1
 		;;
 	'--no-pull')
 		ARG_NOPULL=1
-		ARGS_PASS+=( --no-pull )
-		shift
+		pass 1 "$@"
+		shift 1
 		;;
 	'--sub-fetch')
 		ARG_MODE_FETCH=1
-		shift
+		shift 1
 		;;
 	'--rebuild')
 		ARG_REBUILD=1
-		ARGS_PASS+=( --rebuild )
-		shift
+		pass 1 "$@"
+		shift 1
 		;;
 	'--exclude')
 		readarray -t -O "${#ARGS_EXCLUDE[@]}" ARGS_EXCLUDE <<< "${2//,/$'\n'}"
@@ -314,7 +319,7 @@ while :; do
 		;;
 	'--margs')
 		ARGS_MAKEPKG+=( "$2" )
-		ARGS_PASS+=( --margs "$2" )
+		pass 2 "$@"
 		shift 2
 		;;
 	'--')
@@ -400,7 +405,7 @@ fi
 
 
 if (( ${#FETCH_PKGBUILDS[@]} )); then
-	parallel --bar "$0 ${ARGS_PASS[*]} --sub-fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
+	parallel --bar "$0 ${ARGS_PASS[*]@Q} --sub-fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
 else
 	rc=0
 fi

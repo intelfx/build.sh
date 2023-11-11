@@ -277,7 +277,7 @@ update_one() {
 	fi
 }
 
-ARG_MODE_FETCH=0
+unset ARG_SUBROUTINE
 ARG_REBUILD=0
 ARG_NOPULL=0
 ARGS_PASS=()
@@ -285,7 +285,7 @@ ARGS_EXCLUDE=()
 ARGS_MAKEPKG=()
 ARG_RESET=0
 
-ARGS=$(getopt -o '' --long 'sub-fetch,rebuild,exclude:,margs:,no-pull,reset' -n "${0##*/}" -- "$@") || die "Invalid usage"
+ARGS=$(getopt -o '' --long 'sub:,rebuild,exclude:,margs:,no-pull,reset' -n "${0##*/}" -- "$@") || die "Invalid usage"
 eval set -- "$ARGS"
 unset ARGS
 
@@ -296,6 +296,10 @@ pass() {
 }
 while :; do
 	case "$1" in
+	'--sub')
+		ARG_SUBROUTINE="$2"
+		shift 2
+		;;
 	'--reset')
 		ARG_RESET=1
 		shift 1
@@ -303,10 +307,6 @@ while :; do
 	'--no-pull')
 		ARG_NOPULL=1
 		pass 1 "$@"
-		shift 1
-		;;
-	'--sub-fetch')
-		ARG_MODE_FETCH=1
 		shift 1
 		;;
 	'--rebuild')
@@ -337,7 +337,7 @@ done
 # subroutines
 #
 
-if (( ARG_MODE_FETCH )); then
+if [[ $ARG_SUBROUTINE == fetch ]]; then
 	if ! (( $# == 1 )); then
 		die "Bad usage: $0 ${@@Q}"
 	fi
@@ -354,6 +354,8 @@ if (( ARG_MODE_FETCH )); then
 		echo "$1" >> "$FETCH_ERR_LIST.new"
 	) fi
 	exit $rc
+elif [[ ${ARG_SUBROUTINE+set} ]]; then
+	die "Bad usage: $0 --sub='$ARG_SUBROUTINE'"
 fi
 
 #
@@ -403,7 +405,7 @@ fi
 rc=0
 set +e
 if (( ${#FETCH_PKGBUILDS[@]} )); then
-	parallel --bar "$0 ${ARGS_PASS[*]@Q} --sub-fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
+	parallel --bar "$0 ${ARGS_PASS[*]@Q} --sub=fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
 else
 	rc=$?
 fi

@@ -65,11 +65,6 @@ setup_one() {
 	makepkg_args_build+=( "${ARGS_MAKEPKG[@]}" )
 }
 
-join() {
-	local IFS=,
-	echo "$*"
-}
-
 aur_list() {
 	curl -fsS 'https://aur.archlinux.org/rpc/' -G -d v=5 -d type=info -d arg="$1" \
 		| jq -r 'if (.version == 5 and .type == "multiinfo") then .results[].Name else "AUR response: \(.)\n" | halt_error(1) end'
@@ -99,7 +94,7 @@ run_build() {
 		--pacman-conf "$PACMAN_CONF" \
 		--makepkg-conf "$MAKEPKG_CONF" \
 		"${aurbuild_args[@]}" \
-		--margs "$(join "${makepkg_args_build[@]}")" \
+		--margs "$(join ',' "${makepkg_args_build[@]}")" \
 		"$@"
 }
 
@@ -112,7 +107,7 @@ run_srcver() {
 
 	aur srcver \
 		--margs --config,"$MAKEPKG_CONF" \
-		--margs "$(join "${makepkg_args_prepare[@]}")" \
+		--margs "$(join ',' "${makepkg_args_prepare[@]}")" \
 		"$@"
 }
 

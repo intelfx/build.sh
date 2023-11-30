@@ -43,6 +43,7 @@ declare -A ARGS=(
 	[--rebuild]="ARG_REBUILD pass=ARGS_PASS"
 	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
 	[--reset]=ARG_RESET
+	[--continue]=ARG_CONTINUE
 	[--]=ARG_TARGETS
 )
 parse_args ARGS "$@" || usage
@@ -174,27 +175,41 @@ bld_want_workdir() {
 	fi
 
 	# check timestamp
+	# (if --continue, keep going)
 	if bld_check_workdir_file "$1" ".timestamp"; then
 		local a="$(stat -c '%Y' "$(bld_check_workdir_get_filename "$1" ".timestamp")")"
 		local b="$(date '+%s')"
 		if ! (( a > b - WORKDIR_MAX_AGE_SEC )); then
-			log "bld: not using workdir $1 -- older than ${WORKDIR_MAX_AGE_SEC}s"
-			return 1
+			if [[ ${ARG_CONTINUE+set} ]]; then
+				warn "bld: workdir $1 older than ${WORKDIR_MAX_AGE_SEC}s (continuing anyway)"
+			else
+				log "bld: not using workdir $1 -- older than ${WORKDIR_MAX_AGE_SEC}s"
+				return 1
+			fi
 		fi
 	fi
 
 	# check targets consistency
+	# (if --continue, keep going, unless there is a gross mismatch)
 	if bld_check_workdir_file "$1" "targets_file"; then
 		# workdir has implicit targets -- verify they did not change
 		if [[ ${ARG_TARGETS+set} ]]; then
-			log "bld: not using workdir $1 -- explicit targets set"
+			if [[ ${ARG_CONTINUE+set} ]]; then
+				warn "bld: not using workdir $1 -- explicit targets set"
+			else
+				log "bld: not using workdir $1 -- explicit targets set"
+			fi
 			return 1
 		fi
 		local a="$(bld_check_workdir_get_file "$1" "targets_file")"
 		local b="$(cat_config "$TARGETS_FILE")"
 		if ! [[ $a == $b ]]; then
-			log "bld: not using workdir $1 -- targets file changed"
-			return 1
+			if [[ ${ARG_CONTINUE+set} ]]; then
+				warn "bld: workdir $1 has different targets (continuing anyway)"
+			else
+				log "bld: not using workdir $1 -- targets file changed"
+				return 1
+			fi
 		fi
 	elif bld_check_workdir_file "$1" "targets_list"; then
 		# workdir has explicit targets -- verify they either did not change, or are absent
@@ -205,7 +220,11 @@ bld_want_workdir() {
 		local a="$(bld_check_workdir_get_file "$1" "targets_list")"
 		local b="$(print_array "${ARG_TARGETS[@]}")"
 		if ! [[ $a == $b ]]; then
-			log "bld: not using workdir $1 -- explicit targets changed"
+			if [[ ${ARG_CONTINUE+set} ]]; then
+				warn "bld: not using workdir $1 -- explicit targets changed"
+			else
+				log "bld: not using workdir $1 -- explicit targets changed"
+			fi
 			return 1
 		fi
 	else

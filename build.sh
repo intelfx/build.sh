@@ -244,7 +244,7 @@ update_one() {
 	generate_srcinfo
 
 	local pkg_old pkg_old_ver pkg_old_rel
-	aur repo --table | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4 }' | head -n1 | read pkg_old
+	aur repo --table | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4 }' | sponge | head -n1 | read pkg_old
 	pkg_old_rel="${pkg_old##*-}"
 	pkg_old_ver="${pkg_old%-*}"
 	dbg "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"

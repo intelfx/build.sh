@@ -255,7 +255,6 @@ update_one() {
 		|| true
 	pkg_old_rel="${pkg_old##*-}"
 	pkg_old_ver="${pkg_old%-*}"
-	dbg "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"
 
 	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
 	# FIXME: proper .SRCINFO parser
@@ -268,7 +267,7 @@ update_one() {
 		|| die "no pkgrel in .SRCINFO: $PWD/.SRCINFO"
 	pkg_cur_ver="${pkg_cur_epoch:+$pkg_cur_epoch:}$pkg_cur_ver"
 	pkg_cur="$pkg_cur_ver-$pkg_cur_rel"
-	dbg "$pkg:     repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel"
+	dbg "$pkg:     repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (input=$pkg_old)"
 	dbg "$pkg: PKGBUILD: pkgver=$pkg_cur_ver, pkgrel=$pkg_cur_rel"
 
 	local pkg_new_rel="$pkg_old_rel"

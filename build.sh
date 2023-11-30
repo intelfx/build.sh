@@ -327,7 +327,12 @@ bld_aur_srcver() {
 		"$@"
 }
 
-build_one() {
+
+#
+# subroutines
+#
+
+bld_sub_build() {
 	local pkg pkg_dir pkgbuild_dir
 	declare -a aurbuild_args makepkg_args_prepare makepkg_args_build
 	setup_one "$@" || return
@@ -337,9 +342,11 @@ build_one() {
 		return
 	fi
 	bld_aur_build
+
+	BLD_OK=1
 }
 
-update_one() {
+bld_sub_fetch() {
 	eval "$(ltraps)"
 	local pkg pkg_dir pkgbuild_dir
 	declare -a aurbuild_args makepkg_args_prepare makepkg_args_build
@@ -489,12 +496,9 @@ update_one() {
 	else
 		dbg "$pkg: PKGBUILD: updated pkgver, leaving pkgrel=$pkg_cur_rel"
 	fi
+
+	BLD_OK=1
 }
-
-
-#
-# subroutines
-#
 
 bld_sub_fetch__exit() {
 	if (( BLD_OK )); then
@@ -504,22 +508,12 @@ bld_sub_fetch__exit() {
 	fi
 }
 
-bld_sub_fetch() {
-	update_one "$1"
-	BLD_OK=1
-}
-
 bld_sub_build__exit() {
 	if (( BLD_OK )); then
 		bld_workdir_put_mark "build-ok/${ARG_TARGETS}"
 	else
 		bld_workdir_put_mark "build-err/${ARG_TARGETS}"
 	fi
-}
-
-bld_sub_build() {
-	build_one "$1"
-	BLD_OK=1
 }
 
 

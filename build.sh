@@ -381,10 +381,9 @@ bld_sub_fetch() {
 		if ! git diff-index --quiet HEAD -- "$pkgbuild"; then
 			local pkgbuild_diff="$(mktemp)"
 			local pkgbuild_bak="$(mktemp -p "$pkgbuild_dir")"
-			ltrap "rm -f '$pkgbuild_diff' '$pkgbuild_bak'"
+			ltrap "rm -f '$pkgbuild_bak' '$pkgbuild_diff'"
+			ltrap "mv -f '$pkgbuild_bak' '$pkgbuild'"
 			cp -a "$pkgbuild" "$pkgbuild_bak"
-			(
-			set -eo pipefail
 			git diff "$pkgbuild" \
 				| sed -r \
 					-e ' /^\+(pkgver|pkgrel)=/d' \
@@ -392,7 +391,7 @@ bld_sub_fetch() {
 				>"$pkgbuild_diff"
 			git checkout -f "$pkgbuild"
 			git apply --recount --allow-empty "$pkgbuild_diff"
-			) || { cat "$pkgbuild_diff"; mv "$pkgbuild_bak" "$pkgbuild"; return 1; }
+			luntrap
 			lruntrap
 		fi
 		# rollback local modifications to .SRCINFO

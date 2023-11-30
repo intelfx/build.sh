@@ -251,7 +251,8 @@ update_one() {
 	generate_srcinfo
 
 	local pkg_old pkg_old_ver pkg_old_rel
-	run_repo | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old
+	run_repo | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old \
+		|| true
 	pkg_old_rel="${pkg_old##*-}"
 	pkg_old_ver="${pkg_old%-*}"
 	dbg "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"
@@ -259,9 +260,12 @@ update_one() {
 	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
 	# FIXME: proper .SRCINFO parser
 	# FIXME: split package handling
-	sed -nr 's|^\tepoch = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_epoch
-	sed -nr 's|^\tpkgver = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_ver
-	sed -nr 's|^\tpkgrel = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_rel
+	sed -nr 's|^\tepoch = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_epoch \
+		|| true
+	sed -nr 's|^\tpkgver = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_ver \
+		|| die "no pkgver in .SRCINFO: $PWD/.SRCINFO"
+	sed -nr 's|^\tpkgrel = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_rel \
+		|| die "no pkgrel in .SRCINFO: $PWD/.SRCINFO"
 	pkg_cur_ver="${pkg_cur_epoch:+$pkg_cur_epoch:}$pkg_cur_ver"
 	pkg_cur="$pkg_cur_ver-$pkg_cur_rel"
 	dbg "$pkg:     repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel"

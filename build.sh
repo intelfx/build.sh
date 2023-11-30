@@ -216,7 +216,6 @@ bld_want_workdir() {
 		if ! [[ ${ARG_TARGETS+set} ]]; then
 			return 0
 		fi
-
 		local a="$(bld_check_workdir_get_file "$1" "targets_list")"
 		local b="$(print_array "${ARG_TARGETS[@]}")"
 		if ! [[ $a == $b ]]; then
@@ -228,7 +227,8 @@ bld_want_workdir() {
 			return 1
 		fi
 	else
-		die "bld: bad workdir $1 -- targets_{file,list} not present"
+		err "bld: bad workdir $1 -- targets_{file,list} not present"
+		return 1
 	fi
 	return 0
 }

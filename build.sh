@@ -168,6 +168,11 @@ bld_want_workdir() {
 	# basic checks
 	bld_not_want_workdir "$1" && return 1
 
+	# if --reset, never use a workdir
+	if [[ ${ARG_RESET+set} ]]; then
+		return 1
+	fi
+
 	# check timestamp
 	if bld_check_workdir_file "$1" ".timestamp"; then
 		local a="$(stat -c '%Y' "$(bld_check_workdir_get_filename "$1" ".timestamp")")"
@@ -555,7 +560,7 @@ if ! bld_has_workdir; then
 	done
 
 	# TODO: look for other workdirs to continue, not just last
-	if ! [[ ${ARG_RESET+set} ]] && bld_want_workdir last; then
+	if bld_want_workdir last; then
 		bld_use_workdir last
 	else
 		bld_make_workdir

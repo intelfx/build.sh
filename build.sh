@@ -335,8 +335,8 @@ bld_aur_srcver() {
 bld_sub_build() {
 	local pkg pkg_dir pkgbuild_dir
 	declare -a aurbuild_args makepkg_args_prepare makepkg_args_build
-	setup_one "$@" || return
-	cd "$pkgbuild_dir" || return
+	setup_one "$@"
+	cd "$pkgbuild_dir"
 
 	if ! bld_aur_build_dry | sponge | grep -qE '^build:'; then
 		BLD_OK=1
@@ -357,16 +357,16 @@ bld_sub_fetch() {
 	if ! [[ -d "$pkg_dir" ]]; then
 		cd "$(dirname "$pkg_dir")"
 		if asp list-all | sponge | grep -q -Fx "$pkg"; then
-			asp checkout "$pkg" || return
+			asp checkout "$pkg"
 		elif aur_list "$pkg" | sponge | grep -q -Fx "$pkg"; then
-			git clone "https://aur.archlinux.org/$pkg" || return
+			git clone "https://aur.archlinux.org/$pkg"
 		else
 			err "pkgbase could not be found: $pkg"
 			return 1
 		fi
 	fi
 
-	setup_one "$@" || return
+	setup_one "$@"
 
 	if [[ -e prepare.sh ]]; then
 		if ! ./prepare.sh; then
@@ -441,8 +441,8 @@ bld_sub_fetch() {
 				# hint: the remote tracking information by invoking
 				# hint: "git branch --set-upstream-to=packages/packages/pulseaudio".
 				#
-				#asp update "$pkg" || return
-				flock -x -w 10 "$_asproot/.asp" asp update "$asppkg" || return
+				#asp update "$pkg"
+				flock -x -w 10 "$_asproot/.asp" asp update "$asppkg"
 				;;
 			esac
 
@@ -455,8 +455,8 @@ bld_sub_fetch() {
 		fi
 	fi
 
-	cd "$pkgbuild_dir" || return
-	bld_aur_srcver || return
+	cd "$pkgbuild_dir"
+	bld_aur_srcver
 
 	# pkgrel= was reset above
 	# bump pkgrel= if --rebuild is indicated, or match to repo contents otherwise (to prevent building a package with a lower pkgrel than repo contents)

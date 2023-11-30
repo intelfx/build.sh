@@ -10,19 +10,223 @@ if ! [[ ${BLD_HAS_PROFILE+set} ]]; then
 fi
 
 . $HOME/bin/lib/lib.sh || exit
+shopt -s nullglob
+
+#
+# constants
+#
 
 PKGBUILD_ROOT="$HOME/pkgbuild"
 TARGETS_FILE="$PKGBUILD_ROOT/packages.txt"
 
 WORKDIR_ROOT="$HOME/.pkgbuild.work"
+WORKDIR_MAX_AGE_SEC=3600
 REPO_NAME="custom"
 MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"
 PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
 SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
 
-FETCH_ERR_LIST="$WORKDIR_ROOT/errors.fetch"
+#
+# arguments & usage
+#
 
-export UNATTENDED=1
+_usage() {
+	cat <<EOF
+Usage: $0 foobar
+EOF
+}
+
+declare -A ARGS=(
+	[--sub:]=ARG_SUBROUTINE
+	[--margs:]="ARGS_MAKEPKG split=, append pass=ARGS_PASS"
+	[--exclude:]="ARGS_EXCLUDE split=, append pass=ARGS_PASS"
+	[--rebuild]="ARG_REBUILD pass=ARGS_PASS"
+	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
+	[--reset]=ARG_RESET
+	[--]=ARG_TARGETS
+)
+parse_args ARGS "$@" || usage
+
+#
+# functions
+#
+
+bld_has_workdir() {
+	[[ ${BLD_WORKDIR+set} ]]
+}
+
+bld_make_workdir() {
+	if bld_has_workdir; then
+		return
+	fi
+
+	mkdir -p "$WORKDIR_ROOT"
+
+	local workdir
+	workdir="$(mktemp -d -p "$WORKDIR_ROOT")"
+	ln -rsf "$workdir" -T "$WORKDIR_ROOT/last"
+	log "Starting session $(basename "$workdir")"
+
+	export BLD_WORKDIR="$workdir"
+}
+
+bld_use_workdir() {
+	if bld_has_workdir; then
+		return
+	fi
+
+	local workdir
+	workdir="$(realpath -qe "$WORKDIR_ROOT/$1")"
+	log "Entering session $(basename "$workdir")"
+
+	export BLD_WORKDIR="$workdir"
+}
+
+bld_remove_workdir() {
+	rm -rf "$WORKDIR_ROOT/$1"
+}
+
+bld_check_workdir() {
+	[[ -d "$WORKDIR_ROOT/$1" ]]
+}
+
+bld_check_workdir_file() {
+	[[ -f "$WORKDIR_ROOT/$1/$2" ]]
+}
+
+bld_check_workdir_file_nonempty() {
+	[[ -f "$WORKDIR_ROOT/$1/$2" && -s "$WORKDIR_ROOT/$1/$2" ]]
+}
+
+bld_check_workdir_get_filename() {
+	echo "$WORKDIR_ROOT/$1/$2"
+}
+
+bld_check_workdir_get_file() {
+	cat "$WORKDIR_ROOT/$1/$2"
+}
+
+bld_workdir_file() {
+	echo "$BLD_WORKDIR/$1"
+}
+
+bld_workdir_check_dir() {
+	[[ -d "$BLD_WORKDIR/$1" ]]
+}
+
+bld_workdir_put_dir() {
+	mkdir -p "$BLD_WORKDIR/$1"
+}
+
+bld_workdir_clean_dir() {
+	rm -rf "$BLD_WORKDIR/$1"
+	mkdir -p "$BLD_WORKDIR/$1"
+}
+
+bld_workdir_list_dir() {
+	if ! [[ -e "$BLD_WORKDIR/$1" ]]; then
+		return 0
+	fi
+	find "$BLD_WORKDIR/$1/" -mindepth 1 -maxdepth 1 -printf '%P\n'
+}
+
+bld_workdir_check_file() {
+	[[ -f "$BLD_WORKDIR/$1" ]]
+}
+
+bld_workdir_get_file() {
+	if ! [[ -e "$BLD_WORKDIR/$1" ]]; then
+		err "bld_workdir_get_file: file does not exist: $BLD_WORKDIR/$1"
+	fi
+	cat "$BLD_WORKDIR/$1"
+}
+
+bld_workdir_put_file() {
+	TMPDIR="$BLD_WORKDIR" sponge "$BLD_WORKDIR/$1"
+}
+
+bld_workdir_put_mark() {
+	touch "$BLD_WORKDIR/$1"
+}
+
+bld_workdir_mark_finished() {
+	bld_workdir_put_mark ".finished"
+}
+
+bld_workdir_update_timestamp() {
+	touch "$(bld_workdir_file ".timestamp")"
+}
+
+bld_not_want_workdir() {
+	bld_check_workdir "$1" || return 0
+	bld_check_workdir_file "$1" ".finished" && return 0
+	bld_check_workdir_file_nonempty "$1" "targets" || return 0
+	return 1
+}
+
+bld_want_workdir() {
+	# basic checks
+	bld_not_want_workdir "$1" && return 1
+
+	# check timestamp
+	if bld_check_workdir_file "$1" ".timestamp"; then
+		local a="$(stat -c '%Y' "$(bld_check_workdir_get_filename "$1" ".timestamp")")"
+		local b="$(date '+%s')"
+		if ! (( a > b - WORKDIR_MAX_AGE_SEC )); then
+			log "bld: not using workdir $1 -- older than ${WORKDIR_MAX_AGE_SEC}s"
+			return 1
+		fi
+	fi
+
+	# check targets consistency
+	if bld_check_workdir_file "$1" "targets_file"; then
+		# workdir has implicit targets -- verify they did not change
+		if [[ ${ARG_TARGETS+set} ]]; then
+			log "bld: not using workdir $1 -- explicit targets set"
+			return 1
+		fi
+		local a="$(bld_check_workdir_get_file "$1" "targets_file")"
+		local b="$(cat_config "$TARGETS_FILE")"
+		if ! [[ $a == $b ]]; then
+			log "bld: not using workdir $1 -- targets file changed"
+			return 1
+		fi
+	elif bld_check_workdir_file "$1" "targets_list"; then
+		# workdir has explicit targets -- verify they either did not change, or are absent
+		if ! [[ ${ARG_TARGETS+set} ]]; then
+			return 0
+		fi
+
+		local a="$(bld_check_workdir_get_file "$1" "targets_list")"
+		local b="$(print_array "${ARG_TARGETS[@]}")"
+		if ! [[ $a == $b ]]; then
+			log "bld: not using workdir $1 -- explicit targets changed"
+			return 1
+		fi
+	else
+		die "bld: bad workdir $1 -- targets_{file,list} not present"
+	fi
+	return 0
+}
+
+bld_setup() {
+	# just print the global settings
+	log "Working directory:  $BLD_WORKDIR"
+	log "Build directory:    $SCRATCH_ROOT"
+	log "PKGBUILD directory: $PKGBUILD_ROOT"
+	log "Targets list file:  $TARGETS_FILE"
+	log "Target repo name:   $REPO_NAME"
+	log "pacman.conf:        $PACMAN_CONF"
+	log "makepkg.conf:       $MAKEPKG_CONF"
+}
+
+bld_target_get_dir() {
+	local pkgbase="$1"
+	# TODO: scan and collect packages from subdirs
+	local dir="$PKGBUILD_ROOT/$pkgbase"
+	# do not check for existence or locate PKGBUILD
+	echo "$dir"
+}
 
 setup_one_pre() {
 	pkg="$1"
@@ -287,167 +491,222 @@ update_one() {
 	fi
 }
 
-unset ARG_SUBROUTINE
-ARG_REBUILD=0
-ARG_NOPULL=0
-ARGS_PASS=()
-ARGS_EXCLUDE=()
-ARGS_MAKEPKG=()
-ARG_RESET=0
-
-ARGS=$(getopt -o '' --long 'sub:,rebuild,exclude:,margs:,no-pull,reset' -n "${0##*/}" -- "$@") || die "Invalid usage"
-eval set -- "$ARGS"
-unset ARGS
-
-pass() {
-	local n="$1"
-	shift
-	ARGS_PASS+=( "${@:1:$n}" )
-}
-while :; do
-	case "$1" in
-	'--sub')
-		ARG_SUBROUTINE="$2"
-		shift 2
-		;;
-	'--reset')
-		ARG_RESET=1
-		shift 1
-		;;
-	'--no-pull')
-		ARG_NOPULL=1
-		pass 1 "$@"
-		shift 1
-		;;
-	'--rebuild')
-		ARG_REBUILD=1
-		pass 1 "$@"
-		shift 1
-		;;
-	'--exclude')
-		readarray -t -O "${#ARGS_EXCLUDE[@]}" ARGS_EXCLUDE <<< "${2//,/$'\n'}"
-		shift 2
-		;;
-	'--margs')
-		ARGS_MAKEPKG+=( "$2" )
-		pass 2 "$@"
-		shift 2
-		;;
-	'--')
-		shift
-		break
-		;;
-	*)
-		die "Internal error"
-		;;
-	esac
-done
 
 #
 # subroutines
 #
 
-if [[ $ARG_SUBROUTINE == fetch ]]; then
-	if ! (( $# == 1 )); then
-		die "Bad usage: $0 ${@@Q}"
+bld_sub_fetch__exit() {
+	if (( BLD_OK )); then
+		bld_workdir_put_mark "fetch-ok/${ARG_TARGETS}"
+	else
+		bld_workdir_put_mark "fetch-err/${ARG_TARGETS}"
 	fi
+}
 
-	rc=0
-	set +e
+bld_sub_fetch() {
 	update_one "$1"
-	rc=$?
-	set -e
+	BLD_OK=1
+}
 
-	if (( rc )); then (
-		exec 9<>"$WORKDIR_ROOT/lock"
-		flock -n 9
-		echo "$1" >> "$FETCH_ERR_LIST.new"
-	) fi
-	exit $rc
-elif [[ ${ARG_SUBROUTINE+set} ]]; then
-	die "Bad usage: $0 --sub='$ARG_SUBROUTINE'"
-fi
+bld_sub_build__exit() {
+	if (( BLD_OK )); then
+		bld_workdir_put_mark "build-ok/${ARG_TARGETS}"
+	else
+		bld_workdir_put_mark "build-err/${ARG_TARGETS}"
+	fi
+}
+
+bld_sub_build() {
+	build_one "$1"
+	BLD_OK=1
+}
+
 
 #
 # main
 #
 
-if (( ARG_RESET )); then
-	rm -rf "$WORKDIR_ROOT"
+eval "$(globaltraps)"
+BLD_OK=0
+
+# Execute a subroutine if requested
+if [[ $ARG_SUBROUTINE == fetch ]]; then
+	if (( ${#ARG_TARGETS[@]} != 1 )); then
+		die "Bad usage: $0 ${@@Q}"
+	fi
+	ltrap "bld_sub_fetch__exit"
+	bld_sub_fetch "${ARG_TARGETS[@]}"
+	exit $(( BLD_OK ? 0 : 1 ))
+elif [[ $ARG_SUBROUTINE == build ]]; then
+	if (( ${#ARG_TARGETS[@]} != 1 )); then
+		die "Bad usage: $0 ${@@Q}"
+	fi
+	ltrap "bld_sub_build__exit"
+	bld_sub_build "${ARG_TARGETS[@]}"
+	exit $(( BLD_OK ? 0 : 1 ))
+elif [[ ${ARG_SUBROUTINE+set} ]]; then
+	die "Bad usage: $0 ${@@Q}"
 fi
 
-if (( $# )); then
-	PKGBUILDS=( "$@" )
-else
-	cat "$TARGETS_FILE" \
-		| sed -r 's|[[:space:]]*#.*||g' \
-		| grep -vE "^$" \
-		| readarray -t PKGBUILDS
-fi
+# Prepare workdir
+if ! bld_has_workdir; then
+	# cleanup finished workdirs
+	find "$WORKDIR_ROOT" -mindepth 1 -maxdepth 1 -type d | while read d; do
+		name="$(basename "$d")"
+		if bld_not_want_workdir "$name"; then
+			log "Cleaning obsolete workdir $name"
+			bld_remove_workdir "$name"
+		fi
+	done
 
-print_array "${PKGBUILDS[@]}" | grep -Fvxf <(print_array "${ARGS_EXCLUDE[@]}") | readarray -t PKGBUILDS
-
-mkdir -p "$WORKDIR_ROOT"
-if [[ -e "$FETCH_ERR_LIST" ]]; then
-	fetch_err_stamp="$(stat -c '%Y' "$FETCH_ERR_LIST")"
-	now_stamp="$(date '+%s')"
-	packages_stamp="$(stat -c '%Y' "$TARGETS_FILE")"
-	if ! (( fetch_err_stamp > now_stamp - 3600 )); then
-		err "Ignoring fetch status file, older than 1h"
-		rm -f "$FETCH_ERR_LIST"
-	elif ! (( fetch_err_stamp > packages_stamp )); then
-		err "Ignoring fetch status file, older than packages.txt"
-		rm -f "$FETCH_ERR_LIST"
+	# TODO: look for other workdirs to continue, not just last
+	if ! [[ ${ARG_RESET+set} ]] && bld_want_workdir last; then
+		bld_use_workdir last
+	else
+		bld_make_workdir
 	fi
 fi
+bld_workdir_update_timestamp
 
-if [[ -e "$FETCH_ERR_LIST" ]]; then
-	cat "$FETCH_ERR_LIST" \
-		| { grep -Fvxf <(print_array "${ARGS_EXCLUDE[@]}") || true; } \
-		| readarray -t FETCH_PKGBUILDS
-	log "continuing incomplete update"
-	print_array "${FETCH_PKGBUILDS[@]}" >&2
+# Load/compute settings
+bld_setup
+
+# Load targets
+if bld_workdir_check_file "targets"; then
+	bld_workdir_get_file "targets" | readarray -t BLD_TARGETS
 else
-	FETCH_PKGBUILDS=( "${PKGBUILDS[@]}" )
+	if [[ ${ARG_TARGETS+set} ]]; then
+		BLD_TARGETS=( "${ARG_TARGETS[@]}" )
+		print_array "${BLD_TARGETS[@]}" | bld_workdir_put_file "targets_list"
+	else
+		cat_config "$TARGETS_FILE" | readarray -t BLD_TARGETS
+		print_array "${BLD_TARGETS[@]}" | bld_workdir_put_file "targets_file"
+	fi
+
+	set_difference_a BLD_TARGETS ARGS_EXCLUDE BLD_TARGETS
+	print_array "${BLD_TARGETS[@]}" | bld_workdir_put_file "targets"
 fi
 
+# TODO: dependency resolution
+
+# Fetch targets
+bld_fetch_load_status() {
+	bld_workdir_list_dir "fetch-ok" | readarray -t BLD_FETCH_OK
+	bld_workdir_list_dir "fetch-err" | readarray -t BLD_FETCH_ERR
+
+	set_difference_a BLD_FETCH_OK BLD_TARGETS aliens
+	if [[ ${aliens+set} ]]; then
+		die "Workdir inconsistent -- fetch record contains unknown packages: ${aliens[*]} (n=${#aliens[@]})"
+	fi
+	set_difference_a BLD_TARGETS BLD_FETCH_OK BLD_FETCH_TODO
+	set_difference_a BLD_FETCH BLD_FETCH_ERR BLD_FETCH_MISSING
+	set_difference_a BLD_FETCH_TODO BLD_FETCH_ERR BLD_FETCH_MISSING
+}
+
+bld_fetch_load_status
+
+if [[ ${BLD_FETCH_OK+set} && ${BLD_FETCH_TODO+set} ]]; then
+	log "Updating (${#BLD_FETCH_OK[@]} targets fetched, ${#BLD_FETCH_TODO[@]} targets left)"
+elif [[ ${BLD_FETCH_TODO+set} ]]; then
+	log "Updating (${#BLD_FETCH_TODO[@]} targets)"
+else
+	log "Nothing to fetch"
+fi
+
+bld_workdir_put_dir "fetch-ok"
+bld_workdir_clean_dir "fetch-err"
 
 rc=0
-set +e
-if (( ${#FETCH_PKGBUILDS[@]} )); then
-	parallel --bar "$0 ${ARGS_PASS[*]@Q} --sub=fetch {}" ::: "${FETCH_PKGBUILDS[@]}" && rc=0 || rc=$?
+if [[ ${BLD_FETCH_TODO+set} ]]; then
+	parallel --bar "$0 ${ARGS_PASS[@]@Q} --sub=fetch {}" ::: "${BLD_FETCH_TODO[@]}" \
+		|| rc=$?
+fi
+
+bld_fetch_load_status
+
+err=0
+if [[ ${BLD_FETCH_ERR+set} ]]; then
+	err=1
+	err "Failed to fetch ${#BLD_FETCH_ERR[@]} packages:"
+	err "$(join ", " "${BLD_FETCH_ERR[@]}")"
+fi
+if [[ ${BLD_FETCH_MISSING+set} ]]; then
+	err=1
+	err "Skipped ${#BLD_FETCH_MISSING[@]} packages:"
+	err "$(join ", " "${BLD_FETCH_MISSING[@]}")"
+fi
+
+if (( rc && err )); then
+	err "Failed to fetch some packages, aborting"
+	exit 1
+elif (( rc && !err )); then
+	err "Encountered other errors, aborting"
+	exit 1
+elif (( !rc && err )); then
+	err "Missing some packages, aborting"
+	exit 1
+fi
+
+# Build targets
+# TODO: determine which targets need to be built
+bld_build_load_status() {
+	bld_workdir_list_dir "build-ok" | readarray -t BLD_BUILD_OK
+	bld_workdir_list_dir "build-err" | readarray -t BLD_BUILD_ERR
+
+	set_difference_a BLD_BUILD_OK BLD_TARGETS aliens
+	if [[ ${aliens+set} ]]; then
+		die "Workdir inconsistent -- build record contains unknown packages: ${aliens[*]} (n=${#aliens[@]})"
+	fi
+	set_difference_a BLD_TARGETS BLD_BUILD_OK BLD_BUILD_TODO
+	set_difference_a BLD_BUILD BLD_BUILD_ERR BLD_BUILD_MISSING
+	set_difference_a BLD_BUILD_TODO BLD_BUILD_ERR BLD_BUILD_MISSING
+}
+
+bld_build_load_status
+
+if [[ ${BLD_FETCH_OK+set} && ${BLD_FETCH_TODO+set} ]]; then
+	log "Building (${#BLD_BUILD_OK[@]} targets built, ${#BLD_BUILD_TODO[@]} targets left)"
+elif [[ ${BLD_BUILD_TODO+set} ]]; then
+	log "Building (${#BLD_BUILD_TODO[@]} targets)"
 else
-	rc=$?
+	log "Nothing to build"
 fi
-set -e
 
-if (( rc )) && [[ -e "$FETCH_ERR_LIST.new" ]]; then
-	mv "$FETCH_ERR_LIST.new" "$FETCH_ERR_LIST"
-	cat "$FETCH_ERR_LIST" \
-		| sort -u \
-		| readarray -t failed
-	rc="${#failed[@]}"
-
-	err "failed to update some packages (count=$rc)"
-	print_array "${failed[@]}" >&2
-	exit 1
-elif (( rc )); then
-	err "failed to run fetch"
-	exit 1
-fi
-rm -f "$FETCH_ERR_LIST"{,.new}
+bld_workdir_put_dir "build-ok"
+bld_workdir_clean_dir "build-err"
 
 rc=0
-failed=()
-set +e
-for p in "${PKGBUILDS[@]}"; do
-	build_one "$p"
-	if (( $? )); then (( rc += 1 )); failed+=( $p ); fi
-done
-set -e
+if [[ ${BLD_BUILD_TODO+set} ]]; then
+	for p in "${BLD_BUILD_TODO[@]}"; do
+		"$0" "${ARGS_PASS[@]}" --sub=build "$p" \
+			|| rc=$?
+	done
+fi
 
-if (( rc )); then
-	err "failed to build some packages (count=$rc)"
-	print_array "${failed[@]}" >&2
+bld_build_load_status
+
+err=0
+if [[ ${BLD_BUILD_ERR+set} ]]; then
+	err=1
+	err "Failed to build ${#BLD_BUILD_ERR[@]} packages:"
+	err "$(join ", " "${BLD_BUILD_ERR[@]}")"
+fi
+if [[ ${BLD_BUILD_MISSING+set} ]]; then
+	err=1
+	err "Skipped ${#BLD_BUILD_MISSING[@]} packages:"
+	err "$(join ", " "${BLD_BUILD_MISSING[@]}")"
+fi
+
+if (( rc && err )); then
+	err "Failed to build some packages, aborting"
+	exit 1
+elif (( rc && !err )); then
+	err "Encountered other errors, aborting"
+	exit 1
+elif (( !rc && err )); then
+	err "Missing some packages, aborting"
 	exit 1
 fi
+
+bld_workdir_mark_finished

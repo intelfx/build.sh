@@ -285,14 +285,14 @@ generate_srcinfo() {
 	fi
 }
 
-run_repo() {
+bld_aur_repo() {
 	aur repo \
 		-d "$REPO_NAME" \
 		--config "$PACMAN_CONF" \
 		"$@"
 }
 
-run_build_dry() {
+bld_aur_build_dry() {
 	# skip $aurbuild_args and $makepkg_args_build
 	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
 	aur build \
@@ -304,7 +304,7 @@ run_build_dry() {
 	|| true
 }
 
-run_build() {
+bld_aur_build() {
 	aur build \
 		-d "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
@@ -314,7 +314,7 @@ run_build() {
 		"$@"
 }
 
-run_srcver() {
+bld_aur_srcver() {
 	# XXX: gross hack to skip repeatedly extracting packages that do not deserve it
 	# XXX: however, append --verifysource to force makepkg to fetch the sources (if any)
 	if ! grep -qE '^ *(function *)?pkgver *\( *\)' PKGBUILD; then
@@ -333,10 +333,10 @@ build_one() {
 	setup_one "$@" || return
 	cd "$pkgbuild_dir" || return
 
-	if ! run_build_dry | sponge | grep -qE '^build:'; then
+	if ! bld_aur_build_dry | sponge | grep -qE '^build:'; then
 		return
 	fi
-	run_build
+	bld_aur_build
 }
 
 update_one() {
@@ -448,7 +448,7 @@ update_one() {
 	fi
 
 	cd "$pkgbuild_dir" || return
-	run_srcver || return
+	bld_aur_srcver || return
 
 	# pkgrel= was reset above
 	# bump pkgrel= if --rebuild is indicated, or match to repo contents otherwise (to prevent building a package with a lower pkgrel than repo contents)
@@ -456,7 +456,7 @@ update_one() {
 	generate_srcinfo
 
 	local pkg_old pkg_old_ver pkg_old_rel
-	run_repo | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old \
+	bld_aur_repo | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old \
 		|| true
 	pkg_old_rel="${pkg_old##*-}"
 	pkg_old_ver="${pkg_old%-*}"

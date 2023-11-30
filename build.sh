@@ -339,6 +339,7 @@ bld_sub_build() {
 	cd "$pkgbuild_dir" || return
 
 	if ! bld_aur_build_dry | sponge | grep -qE '^build:'; then
+		BLD_OK=1
 		return
 	fi
 	bld_aur_build

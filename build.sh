@@ -14,9 +14,9 @@ fi
 PKGBUILD_ROOT="$HOME/pkgbuild"
 WORKDIR_ROOT="$HOME/.pkgbuild.work"
 PKG_LIST="$PKGBUILD_ROOT/packages.txt"
-MAKEPKG_CONF="/etc/aurutils/makepkg-custom.conf"
-PACMAN_CONF="/etc/aurutils/pacman-custom.conf"
 REPO_NAME="custom"
+MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"
+PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
 SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
 
 FETCH_ERR_LIST="$WORKDIR_ROOT/errors.fetch"

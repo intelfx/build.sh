@@ -249,7 +249,7 @@ update_one() {
 	pkg_old_ver="${pkg_old%-*}"
 	dbg "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"
 
-	local pkg_cur pkg_cur_ver pkg_cur_rel
+	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
 	# FIXME: proper .SRCINFO parser
 	# FIXME: split package handling
 	sed -nr 's|^\tepoch = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_epoch

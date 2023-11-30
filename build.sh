@@ -12,8 +12,9 @@ fi
 . $HOME/bin/lib/lib.sh || exit
 
 PKGBUILD_ROOT="$HOME/pkgbuild"
+TARGETS_FILE="$PKGBUILD_ROOT/packages.txt"
+
 WORKDIR_ROOT="$HOME/.pkgbuild.work"
-PKG_LIST="$PKGBUILD_ROOT/packages.txt"
 REPO_NAME="custom"
 MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"
 PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
@@ -378,7 +379,7 @@ fi
 if (( $# )); then
 	PKGBUILDS=( "$@" )
 else
-	cat "$PKG_LIST" \
+	cat "$TARGETS_FILE" \
 		| sed -r 's|[[:space:]]*#.*||g' \
 		| grep -vE "^$" \
 		| readarray -t PKGBUILDS
@@ -390,7 +391,7 @@ mkdir -p "$WORKDIR_ROOT"
 if [[ -e "$FETCH_ERR_LIST" ]]; then
 	fetch_err_stamp="$(stat -c '%Y' "$FETCH_ERR_LIST")"
 	now_stamp="$(date '+%s')"
-	packages_stamp="$(stat -c '%Y' "$PKG_LIST")"
+	packages_stamp="$(stat -c '%Y' "$TARGETS_FILE")"
 	if ! (( fetch_err_stamp > now_stamp - 3600 )); then
 		err "Ignoring fetch status file, older than 1h"
 		rm -f "$FETCH_ERR_LIST"

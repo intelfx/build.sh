@@ -80,6 +80,13 @@ generate_srcinfo() {
 	fi
 }
 
+run_repo() {
+	aur repo \
+		-d "$REPO_NAME" \
+		--config "$PACMAN_CONF" \
+		"$@"
+}
+
 run_build_dry() {
 	# skip $aurbuild_args and $makepkg_args_build
 	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
@@ -244,7 +251,7 @@ update_one() {
 	generate_srcinfo
 
 	local pkg_old pkg_old_ver pkg_old_rel
-	aur repo --table | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old
+	run_repo | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old
 	pkg_old_rel="${pkg_old##*-}"
 	pkg_old_ver="${pkg_old%-*}"
 	dbg "$pkg: repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (version=$pkg_old)"

@@ -715,7 +715,7 @@ declare -A BUILD_MSGS=(
 _phase_build() {
 	local p
 	for p; do
-		"$0" "${ARGS_PASS[@]}" --sub=build "$p" || { rc=$?; return; }
+		"$0" "${ARGS_PASS[@]}" --sub=build "$p" || rc=$?  # keep going
 	done
 }
 bld_phase BLD_TARGETS BUILD_MSGS _phase_build

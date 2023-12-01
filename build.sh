@@ -414,8 +414,8 @@ bld_phase() {
 	fi
 	if [[ ${BLD_PHASE_MISSING+set} ]]; then
 		err=1
-		errf "${msgs[missing]}" "${#BLD_PHASE_MISSING[@]}"
-		err "$(join ", " "${BLD_PHASE_ERR[@]}")"
+		errf "${msgs[missed]}" "${#BLD_PHASE_MISSING[@]}"
+		err "$(join ", " "${BLD_PHASE_MISSING[@]}")"
 	fi
 
 	if (( rc && err )); then
@@ -689,7 +689,7 @@ declare -A FETCH_MSGS=(
 	[todo_partial]='Updating (%2$d targets fetched, %1$d targets left)'
 	[todo_empty]='Nothing to fetch'
 	[failed]='Failed to fetch %d packages:'
-	[skipped]='Missed fetching of %d packages'
+	[missed]='Missed fetching of %d packages:'
 	[die_failed]='Failed to fetch some packages, aborting'
 	[die_missed]='Missed some packages while fetching, aborting'
 	[die_rc]='Encountered other errors while fetching, aborting'
@@ -707,7 +707,7 @@ declare -A BUILD_MSGS=(
 	[todo_partial]='Building (%2$d targets built, %1$d targets left)'
 	[todo_empty]='Nothing to build'
 	[failed]='Failed to build %d packages:'
-	[skipped]='Missed building of %d packages'
+	[missed]='Missed building of %d packages:'
 	[die_failed]='Failed to build some packages, aborting'
 	[die_missed]='Missed some packages while building, aborting'
 	[die_rc]='Encountered other errors while building, aborting'

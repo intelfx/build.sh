@@ -389,7 +389,7 @@ bld_phase() {
 	bld_phase_load_status "$1" "$2"
 
 	if [[ ${BLD_PHASE_OK+set} && ${BLD_PHASE_TODO+set} ]]; then
-		logf "${msgs[todo_partial]}" "${#BLD_PHASE_TODO[@]}" "${#BLD_PHASE_OK[@]}"
+		logf "${msgs[todo_partial]}" "${#BLD_PHASE_OK[@]}" "${#BLD_PHASE_TODO[@]}"
 	elif [[ ${BLD_PHASE_TODO+set} ]]; then
 		logf "${msgs[todo]}" "${#BLD_PHASE_TODO[@]}"
 	else
@@ -686,7 +686,7 @@ fi
 declare -A FETCH_MSGS=(
 	[id]='fetch'  # should match <id>-ok, <id>-err directories
 	[todo]='Updating (%d targets)'
-	[todo_partial]='Updating (%2$d targets fetched, %1$d targets left)'
+	[todo_partial]='Updating (%d targets fetched, %d targets left)'
 	[todo_empty]='Nothing to fetch'
 	[failed]='Failed to fetch %d packages:'
 	[missed]='Missed fetching of %d packages:'
@@ -704,7 +704,7 @@ bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch
 declare -A BUILD_MSGS=(
 	[id]='build'  # should match <id>-ok, <id>-err directories
 	[todo]='Building (%d targets)'
-	[todo_partial]='Building (%2$d targets built, %1$d targets left)'
+	[todo_partial]='Building (%d targets built, %d targets left)'
 	[todo_empty]='Nothing to build'
 	[failed]='Failed to build %d packages:'
 	[missed]='Missed building of %d packages:'

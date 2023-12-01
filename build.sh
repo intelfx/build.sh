@@ -353,6 +353,82 @@ bld_aur_srcver() {
 
 
 #
+# subroutine driver
+# (harness that invokes a single subroutine for given targets,
+# tracking progress and errors)
+#
+
+bld_phase_load_status() {
+	declare -n targets="$1"
+	declare -n msgs="$2"
+
+	local id="${msgs[id]}"
+
+	bld_workdir_list_dir "${id}-ok" | readarray -t BLD_PHASE_OK
+	bld_workdir_list_dir "${id}-err" | readarray -t BLD_PHASE_ERR
+
+	declare -a aliens
+	set_difference_a BLD_PHASE_OK targets aliens
+	if [[ ${aliens+set} ]]; then
+		die "Workdir inconsistent -- '${id}-ok' record contains unknown packages (n=${#aliens[@]}): ${aliens[*]}"
+	fi
+	set_difference_a BLD_PHASE_ERR targets aliens
+	if [[ ${aliens+set} ]]; then
+		die "Workdir inconsistent -- '${id}-err' record contains unknown packages (n=${#aliens[@]}): ${aliens[*]}"
+	fi
+
+	set_difference_a targets BLD_PHASE_OK BLD_PHASE_TODO
+	set_difference_a BLD_PHASE BLD_PHASE_ERR BLD_PHASE_MISSING
+	set_difference_a BLD_PHASE_TODO BLD_PHASE_ERR BLD_PHASE_MISSING
+}
+
+bld_phase() {
+	declare -n targets="$1"
+	declare -n msgs="$2"
+	local fn="$3"
+
+	bld_phase_load_status "$1" "$2"
+
+	if [[ ${BLD_PHASE_OK+set} && ${BLD_PHASE_TODO+set} ]]; then
+		logf "${msgs[todo_partial]}" "${#BLD_PHASE_TODO[@]}" "${#BLD_PHASE_OK[@]}"
+	elif [[ ${BLD_PHASE_TODO+set} ]]; then
+		logf "${msgs[todo]}" "${#BLD_PHASE_TODO[@]}"
+	else
+		logf "${msgs[todo_empty]}"
+	fi
+
+	bld_workdir_put_dir "${msgs[id]}-ok"
+	bld_workdir_clean_dir "${msgs[id]}-err"
+
+	local rc=0
+	if [[ ${BLD_PHASE_TODO+set} ]]; then
+		"$fn" "${BLD_PHASE_TODO[@]}" || rc=$?
+	fi
+
+	bld_phase_load_status "$1" "$2"
+
+	local err=0
+	if [[ ${BLD_PHASE_ERR+set} ]]; then
+		err=1
+		errf "${msgs[failed]}" "${#BLD_PHASE_ERR[@]}"
+		err "$(join ", " "${BLD_PHASE_ERR[@]}")"
+	fi
+	if [[ ${BLD_PHASE_MISSING+set} ]]; then
+		err=1
+		errf "${msgs[missing]}" "${#BLD_PHASE_MISSING[@]}"
+		err "$(join ", " "${BLD_PHASE_ERR[@]}")"
+	fi
+
+	if (( rc && err )); then
+		dief "${msgs[die_failed]}"
+	elif (( !rc && err )); then
+		dief "${msgs[die_missed]}"
+	elif (( rc && !err )); then
+		dief "${msgs[die_rc]}"
+	fi
+}
+
+#
 # subroutines
 #
 
@@ -606,125 +682,43 @@ else
 	print_array "${BLD_TARGETS[@]}" | bld_workdir_put_file "targets"
 fi
 
-# TODO: dependency resolution
-
 # Fetch targets
-bld_fetch_load_status() {
-	bld_workdir_list_dir "fetch-ok" | readarray -t BLD_FETCH_OK
-	bld_workdir_list_dir "fetch-err" | readarray -t BLD_FETCH_ERR
-
-	set_difference_a BLD_FETCH_OK BLD_TARGETS aliens
-	if [[ ${aliens+set} ]]; then
-		die "Workdir inconsistent -- fetch record contains unknown packages: ${aliens[*]} (n=${#aliens[@]})"
-	fi
-	set_difference_a BLD_TARGETS BLD_FETCH_OK BLD_FETCH_TODO
-	set_difference_a BLD_FETCH BLD_FETCH_ERR BLD_FETCH_MISSING
-	set_difference_a BLD_FETCH_TODO BLD_FETCH_ERR BLD_FETCH_MISSING
+# TODO: dependency resolution
+declare -A FETCH_MSGS=(
+	[id]='fetch'  # should match <id>-ok, <id>-err directories
+	[todo]='Updating (%d targets)'
+	[todo_partial]='Updating (%2$d targets fetched, %1$d targets left)'
+	[todo_empty]='Nothing to fetch'
+	[failed]='Failed to fetch %d packages:'
+	[skipped]='Missed fetching of %d packages'
+	[die_failed]='Failed to fetch some packages, aborting'
+	[die_missed]='Missed some packages while fetching, aborting'
+	[die_rc]='Encountered other errors while fetching, aborting'
+)
+_phase_fetch() {
+	parallel --bar "$0 ${ARGS_PASS[@]@Q} --sub=fetch {}" ::: "$@" || rc=$?
 }
-
-bld_fetch_load_status
-
-if [[ ${BLD_FETCH_OK+set} && ${BLD_FETCH_TODO+set} ]]; then
-	log "Updating (${#BLD_FETCH_OK[@]} targets fetched, ${#BLD_FETCH_TODO[@]} targets left)"
-elif [[ ${BLD_FETCH_TODO+set} ]]; then
-	log "Updating (${#BLD_FETCH_TODO[@]} targets)"
-else
-	log "Nothing to fetch"
-fi
-
-bld_workdir_put_dir "fetch-ok"
-bld_workdir_clean_dir "fetch-err"
-
-rc=0
-if [[ ${BLD_FETCH_TODO+set} ]]; then
-	parallel --bar "$0 ${ARGS_PASS[@]@Q} --sub=fetch {}" ::: "${BLD_FETCH_TODO[@]}" \
-		|| rc=$?
-fi
-
-bld_fetch_load_status
-
-err=0
-if [[ ${BLD_FETCH_ERR+set} ]]; then
-	err=1
-	err "Failed to fetch ${#BLD_FETCH_ERR[@]} packages:"
-	err "$(join ", " "${BLD_FETCH_ERR[@]}")"
-fi
-if [[ ${BLD_FETCH_MISSING+set} ]]; then
-	err=1
-	err "Skipped ${#BLD_FETCH_MISSING[@]} packages:"
-	err "$(join ", " "${BLD_FETCH_MISSING[@]}")"
-fi
-
-if (( rc && err )); then
-	err "Failed to fetch some packages, aborting"
-	exit 1
-elif (( rc && !err )); then
-	err "Encountered other errors, aborting"
-	exit 1
-elif (( !rc && err )); then
-	err "Missing some packages, aborting"
-	exit 1
-fi
+bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch
 
 # Build targets
 # TODO: determine which targets need to be built
-bld_build_load_status() {
-	bld_workdir_list_dir "build-ok" | readarray -t BLD_BUILD_OK
-	bld_workdir_list_dir "build-err" | readarray -t BLD_BUILD_ERR
-
-	set_difference_a BLD_BUILD_OK BLD_TARGETS aliens
-	if [[ ${aliens+set} ]]; then
-		die "Workdir inconsistent -- build record contains unknown packages: ${aliens[*]} (n=${#aliens[@]})"
-	fi
-	set_difference_a BLD_TARGETS BLD_BUILD_OK BLD_BUILD_TODO
-	set_difference_a BLD_BUILD BLD_BUILD_ERR BLD_BUILD_MISSING
-	set_difference_a BLD_BUILD_TODO BLD_BUILD_ERR BLD_BUILD_MISSING
-}
-
-bld_build_load_status
-
-if [[ ${BLD_FETCH_OK+set} && ${BLD_FETCH_TODO+set} ]]; then
-	log "Building (${#BLD_BUILD_OK[@]} targets built, ${#BLD_BUILD_TODO[@]} targets left)"
-elif [[ ${BLD_BUILD_TODO+set} ]]; then
-	log "Building (${#BLD_BUILD_TODO[@]} targets)"
-else
-	log "Nothing to build"
-fi
-
-bld_workdir_put_dir "build-ok"
-bld_workdir_clean_dir "build-err"
-
-rc=0
-if [[ ${BLD_BUILD_TODO+set} ]]; then
-	for p in "${BLD_BUILD_TODO[@]}"; do
-		"$0" "${ARGS_PASS[@]}" --sub=build "$p" \
-			|| rc=$?
+declare -A BUILD_MSGS=(
+	[id]='build'  # should match <id>-ok, <id>-err directories
+	[todo]='Building (%d targets)'
+	[todo_partial]='Building (%2$d targets built, %1$d targets left)'
+	[todo_empty]='Nothing to build'
+	[failed]='Failed to build %d packages:'
+	[skipped]='Missed building of %d packages'
+	[die_failed]='Failed to build some packages, aborting'
+	[die_missed]='Missed some packages while building, aborting'
+	[die_rc]='Encountered other errors while building, aborting'
+)
+_phase_build() {
+	local p
+	for p; do
+		"$0" "${ARGS_PASS[@]}" --sub=build "$p" || { rc=$?; return; }
 	done
-fi
-
-bld_build_load_status
-
-err=0
-if [[ ${BLD_BUILD_ERR+set} ]]; then
-	err=1
-	err "Failed to build ${#BLD_BUILD_ERR[@]} packages:"
-	err "$(join ", " "${BLD_BUILD_ERR[@]}")"
-fi
-if [[ ${BLD_BUILD_MISSING+set} ]]; then
-	err=1
-	err "Skipped ${#BLD_BUILD_MISSING[@]} packages:"
-	err "$(join ", " "${BLD_BUILD_MISSING[@]}")"
-fi
-
-if (( rc && err )); then
-	err "Failed to build some packages, aborting"
-	exit 1
-elif (( rc && !err )); then
-	err "Encountered other errors, aborting"
-	exit 1
-elif (( !rc && err )); then
-	err "Missing some packages, aborting"
-	exit 1
-fi
+}
+bld_phase BLD_TARGETS BUILD_MSGS _phase_build
 
 bld_workdir_mark_finished

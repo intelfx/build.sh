@@ -378,7 +378,6 @@ bld_phase_load_status() {
 	fi
 
 	set_difference_a targets BLD_PHASE_OK BLD_PHASE_TODO
-	set_difference_a BLD_PHASE BLD_PHASE_ERR BLD_PHASE_MISSING
 	set_difference_a BLD_PHASE_TODO BLD_PHASE_ERR BLD_PHASE_MISSING
 }
 

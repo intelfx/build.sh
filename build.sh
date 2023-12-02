@@ -45,6 +45,7 @@ declare -A ARGS=(
 	[--no-chroot]="ARG_NO_CHROOT pass=ARGS_PASS"
 	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
 	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
+	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
 	[--reset]=ARG_RESET
 	[--continue]=ARG_CONTINUE
 	[--]=ARG_TARGETS
@@ -315,10 +316,15 @@ setup_one() {
 			)
 		fi
 
-		# optionally drop --clean here...
-		makepkg_args_prepare=( --cleanbuild --clean )
-		# ...and --cleanbuild here for a bit more spead and a bit less isolation
-		makepkg_args_build=( --cleanbuild --clean )
+		if ! [[ ${ARGS_UNCLEAN+set} ]]; then
+			# optionally drop --clean here...
+			makepkg_args_prepare=( --cleanbuild --clean )
+			# ...and --cleanbuild here for a bit more spead and a bit less isolation
+			makepkg_args_build=( --cleanbuild --clean )
+		else
+			makepkg_args_prapare=()
+			makepkg_args_build=()
+		fi
 		;;
 	esac
 	aurbuild_args+=( --remove --new )

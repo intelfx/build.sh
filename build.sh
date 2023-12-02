@@ -42,11 +42,30 @@ declare -A ARGS=(
 	[--exclude:]="ARGS_EXCLUDE split=, append pass=ARGS_PASS"
 	[--rebuild]="ARG_REBUILD pass=ARGS_PASS"
 	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
+	[--no-chroot]="ARG_NO_CHROOT pass=ARGS_PASS"
+	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
+	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
 	[--reset]=ARG_RESET
 	[--continue]=ARG_CONTINUE
 	[--]=ARG_TARGETS
 )
 parse_args ARGS "$@" || usage
+
+# convert some arguments from a user-preferred form into the
+# developer-preferred form
+if [[ ${ARG_NO_CHROOT+set} && ${ARGS_KEEP_CHROOT+set} ]]; then
+	usage "--no-chroot and --keep-chroot are mutually exclusive"
+elif [[ ${ARG_NO_CHROOT+set} ]]; then
+	ARG_CHROOT=no
+elif [[ ${ARG_KEEP_CHROOT+set} ]]; then
+	ARG_CHROOT=keep
+else
+	ARG_CHROOT=transient
+fi
+
+if [[ ${ARG_NO_CHROOT+set} && ${ARG_ISOLATE_CHROOT+set} ]]; then
+	usage "--no-chroot and --isolate-chroot are mutually exclusive"
+fi
 
 #
 # functions
@@ -283,10 +302,19 @@ setup_one() {
 		;;
 	*)
 		# build in a container
-		aurbuild_args+=(
-			-c -T
-			--bind-rw "$SCRATCH_ROOT":/build
-		)
+		case "$ARG_CHROOT" in
+		no) ;;
+		keep) aurbuild_args+=( -c ) ;;
+		transient) aurbuild_args+=( -c -T ) ;;
+		*) die "Internal error: $(declare -p ARG_CHROOT)" ;;
+		esac
+
+		if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
+			aurbuild_args+=(
+				--bind-rw "$SCRATCH_ROOT":/build
+			)
+		fi
+
 		# optionally drop --clean here...
 		makepkg_args_prepare=( --cleanbuild --clean )
 		# ...and --cleanbuild here for a bit more spead and a bit less isolation

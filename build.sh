@@ -25,6 +25,9 @@ REPO_NAME="custom"
 MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"
 PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
 SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
+CCACHE_ROOT="/mnt/ssd/Scratch/makepkg-ccache"
+SCCACHE_ROOT="/mnt/ssd/Scratch/makepkg-sccache"
+CHROOT_PKGS=()
 
 #
 # arguments & usage
@@ -46,6 +49,7 @@ declare -A ARGS=(
 	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
 	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
 	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
+	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
 	[--reset]=ARG_RESET
 	[--continue]=ARG_CONTINUE
 	[--]=ARG_TARGETS
@@ -66,6 +70,12 @@ fi
 
 if [[ ${ARG_NO_CHROOT+set} && ${ARG_ISOLATE_CHROOT+set} ]]; then
 	usage "--no-chroot and --isolate-chroot are mutually exclusive"
+fi
+
+if ! [[ ${ARG_NO_CCACHE+set} ]]; then
+	CHROOT_PKGS+=(
+		ccache sccache
+	)
 fi
 
 #
@@ -262,6 +272,34 @@ bld_setup() {
 	log "Target repo name:   $REPO_NAME"
 	log "pacman.conf:        $PACMAN_CONF"
 	log "makepkg.conf:       $MAKEPKG_CONF"
+
+	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
+		MAKEPKG_CONF_CCACHE="$(mktemp \
+			-p "$BLD_WORKDIR" \
+			makepkg+ccache.XXX.conf \
+		)"
+		cp -f "$MAKEPKG_CONF" -T "$MAKEPKG_CONF_CCACHE"
+		cat >>"$MAKEPKG_CONF_CCACHE" <<EOF
+
+#########################################################################
+# build.sh CCACHE CONFIGURATION
+#########################################################################
+BUILDENV+=( ccache )
+export RUSTC_WRAPPER="/usr/bin/sccache"
+export CCACHE_DIR="$CCACHE_ROOT"
+export CCACHE_CONFIGPATH="$CCACHE_ROOT/ccache.conf"
+export SCCACHE_DIR="$SCCACHE_ROOT"
+export SCCACHE_CONF="$SCCACHE_ROOT/sccache.conf"
+export CCACHE_BASEDIR="\$BUILDDIR"
+EOF
+		ltrap "rm -f '$MAKEPKG_CONF_CCACHE'"
+		# pass $MAKEPKG_CONF_CCACHE to subprocesses, which will
+		# then be read in setup_one()
+		# FIXME this is dirty
+		export MAKEPKG_CONF_CCACHE
+
+		log "makepkg.conf (ccache): $MAKEPKG_CONF_CCACHE"
+	fi
 }
 
 bld_target_get_dir() {
@@ -316,6 +354,12 @@ setup_one() {
 					--bind-rw "$SCRATCH_ROOT":/build
 				)
 			fi
+			if ! [[ ${ARG_NO_CCACHE+set} ]]; then
+				aurbuild_args+=(
+					--bind-rw "$CCACHE_ROOT"
+					--bind-rw "$SCCACHE_ROOT"
+				)
+			fi
 		fi
 
 		if ! [[ ${ARGS_UNCLEAN+set} ]]; then
@@ -332,6 +376,11 @@ setup_one() {
 	aurbuild_args+=( --remove --new )
 	makepkg_args_prepare+=( "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${ARGS_MAKEPKG[@]}" )
+
+	# FIXME this is dirty
+	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
+		MAKEPKG_CONF="$MAKEPKG_CONF_CCACHE"
+	fi
 }
 
 aur_list() {
@@ -349,6 +398,14 @@ bld_aur_repo() {
 	aur repo \
 		-d "$REPO_NAME" \
 		--config "$PACMAN_CONF" \
+		"$@"
+}
+
+bld_aur_chroot() {
+	aur chroot \
+		--suffix "$REPO_NAME" \
+		--pacman-conf "$PACMAN_CONF" \
+		--makepkg-conf "$MAKEPKG_CONF" \
 		"$@"
 }
 
@@ -700,6 +757,11 @@ bld_workdir_update_timestamp
 
 # Load/compute settings
 bld_setup
+
+# Update chroot
+if [[ $ARG_CHROOT != no ]]; then
+	bld_aur_chroot --create --update -- --needed "${CHROOT_PKGS[@]}"
+fi
 
 # Load targets
 if bld_workdir_check_file "targets"; then

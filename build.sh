@@ -598,7 +598,7 @@ bld_sub_fetch() {
 	generate_srcinfo
 
 	local pkg_old pkg_old_ver pkg_old_rel
-	bld_aur_repo | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old \
+	bld_aur_repo --table | sponge | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old \
 		|| true
 	pkg_old_rel="${pkg_old##*-}"
 	pkg_old_ver="${pkg_old%-*}"

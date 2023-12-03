@@ -27,7 +27,6 @@ PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
 SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
 CCACHE_ROOT="/mnt/ssd/Scratch/makepkg-ccache"
 SCCACHE_ROOT="/mnt/ssd/Scratch/makepkg-sccache"
-CHROOT_PKGS=()
 
 #
 # arguments & usage
@@ -380,6 +379,10 @@ setup_one() {
 	# FIXME this is dirty
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
 		MAKEPKG_CONF="$MAKEPKG_CONF_CCACHE"
+		aurbuild_args+=(
+			-I ccache
+			-I sccache
+		)
 	fi
 }
 
@@ -760,7 +763,7 @@ bld_setup
 
 # Update chroot
 if [[ $ARG_CHROOT != no ]]; then
-	bld_aur_chroot --create --update -- --needed "${CHROOT_PKGS[@]}"
+	bld_aur_chroot --create --update
 fi
 
 # Load targets

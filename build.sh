@@ -310,10 +310,12 @@ setup_one() {
 		*) die "Internal error: $(declare -p ARG_CHROOT)" ;;
 		esac
 
-		if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
-			aurbuild_args+=(
-				--bind-rw "$SCRATCH_ROOT":/build
-			)
+		if [[ $ARG_CHROOT != no ]]; then
+			if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
+				aurbuild_args+=(
+					--bind-rw "$SCRATCH_ROOT":/build
+				)
+			fi
 		fi
 
 		if ! [[ ${ARGS_UNCLEAN+set} ]]; then

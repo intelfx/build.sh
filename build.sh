@@ -380,8 +380,8 @@ setup_one() {
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
 		MAKEPKG_CONF="$MAKEPKG_CONF_CCACHE"
 		aurbuild_args+=(
-			-I /var/cache/pacman/pkg/$(expac -S '%f' ccache)
-			-I /var/cache/pacman/pkg/$(expac -S '%f' sccache)
+			-I ccache
+			-I sccache
 		)
 	fi
 }

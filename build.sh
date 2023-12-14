@@ -46,6 +46,7 @@ declare -A ARGS=(
 	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
 	[--no-chroot]="ARG_NO_CHROOT pass=ARGS_PASS"
 	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
+	[--reuse-chroot]="ARG_REUSE_CHROOT pass=ARGS_PASS"
 	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
 	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
 	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
@@ -57,12 +58,14 @@ parse_args ARGS "$@" || usage
 
 # convert some arguments from a user-preferred form into the
 # developer-preferred form
-if [[ ${ARG_NO_CHROOT+set} && ${ARGS_KEEP_CHROOT+set} ]]; then
-	usage "--no-chroot and --keep-chroot are mutually exclusive"
+if (( (${ARG_NO_CHROOT+1} + ${ARG_KEEP_CHROOT+1} + ${ARG_REUSE_CHROOT+1}) > 1 )); then
+	usage "--no-chroot, --keep-chroot and --reuse-chroot are mutually exclusive"
 elif [[ ${ARG_NO_CHROOT+set} ]]; then
 	ARG_CHROOT=no
 elif [[ ${ARG_KEEP_CHROOT+set} ]]; then
 	ARG_CHROOT=keep
+elif [[ ${ARG_REUSE_CHROOT+set} ]]; then
+	ARG_CHROOT=reuse
 else
 	ARG_CHROOT=transient
 fi
@@ -343,6 +346,7 @@ setup_one() {
 		case "$ARG_CHROOT" in
 		no) ;;
 		keep) aurbuild_args+=( -c ) ;;
+		reuse) aurbuild_args+=( -c --cargs-no-default ) ;;
 		transient) aurbuild_args+=( -c -T ) ;;
 		*) die "Internal error: $(declare -p ARG_CHROOT)" ;;
 		esac

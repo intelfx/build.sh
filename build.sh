@@ -276,11 +276,9 @@ bld_setup() {
 	log "makepkg.conf:       $MAKEPKG_CONF"
 
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
-		MAKEPKG_CONF_CCACHE="$(mktemp \
-			-p "$BLD_WORKDIR" \
-			makepkg+ccache.XXX.conf \
-		)"
-		cp -f "$MAKEPKG_CONF" -T "$MAKEPKG_CONF_CCACHE"
+		MAKEPKG_CONF_CCACHE="$BLD_WORKDIR/makepkg+ccache.conf"
+
+		cp -f "$MAKEPKG_CONF" -T "$MAKEPKG_CONF_CCACHE" -n
 		cat >>"$MAKEPKG_CONF_CCACHE" <<EOF
 
 #########################################################################

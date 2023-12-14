@@ -58,7 +58,7 @@ parse_args ARGS "$@" || usage
 
 # convert some arguments from a user-preferred form into the
 # developer-preferred form
-if (( (${ARG_NO_CHROOT+1} + ${ARG_KEEP_CHROOT+1} + ${ARG_REUSE_CHROOT+1}) > 1 )); then
+if (( (ARG_NO_CHROOT + ARG_KEEP_CHROOT + ARG_REUSE_CHROOT) > 1 )); then
 	usage "--no-chroot, --keep-chroot and --reuse-chroot are mutually exclusive"
 elif [[ ${ARG_NO_CHROOT+set} ]]; then
 	ARG_CHROOT=no

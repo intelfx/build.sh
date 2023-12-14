@@ -361,7 +361,7 @@ setup_one() {
 			fi
 		fi
 
-		if ! [[ ${ARGS_UNCLEAN+set} ]]; then
+		if ! [[ ${ARG_UNCLEAN+set} ]]; then
 			# optionally drop --clean here...
 			makepkg_args_prepare=( --cleanbuild --clean )
 			# ...and --cleanbuild here for a bit more spead and a bit less isolation
@@ -370,7 +370,6 @@ setup_one() {
 			makepkg_args_prapare=()
 			makepkg_args_build=()
 		fi
-		;;
 	esac
 	aurbuild_args+=( --remove --new )
 	makepkg_args_prepare+=( "${ARGS_MAKEPKG[@]}" )

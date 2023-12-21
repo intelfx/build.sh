@@ -373,7 +373,7 @@ setup_one() {
 			makepkg_args_build=()
 		fi
 	esac
-	aurbuild_args+=( --remove --new )
+	aurbuild_args+=( --remove )
 	makepkg_args_prepare+=( "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${ARGS_MAKEPKG[@]}" )
 

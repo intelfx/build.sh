@@ -367,7 +367,7 @@ setup_one() {
 			if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
 				aurbuild_args+=(
 					--bind-rw "$SCRATCH_ROOT":/build
-					--bind-rw "$CONTAINERS_ROOT":/var/lib/containers
+					--bind-rw "$CONTAINERS_ROOT":/build/.local/share/containers
 				)
 			fi
 			if ! [[ ${ARG_NO_CCACHE+set} ]]; then

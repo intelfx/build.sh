@@ -818,6 +818,13 @@ EOF
 	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subgid"
 builduser:100000:65536
 EOF
+	
+	log "Hacking up /etc/containers/storage.conf at $CHROOT_PATH"
+	sudo install -dm755 "$CHROOT_PATH/etc/containers"
+	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/containers/storage.conf"
+[storage]
+  driver_priority = [ "btrfs", "overlay" ]
+EOF
 fi
 
 # Load targets

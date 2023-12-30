@@ -27,6 +27,9 @@ PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
 SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
 CCACHE_ROOT="/mnt/ssd/Scratch/makepkg-ccache"
 SCCACHE_ROOT="/mnt/ssd/Scratch/makepkg-sccache"
+CONTAINERS_ROOT="/mnt/ssd/Scratch/makepkg-containers"
+unset CHROOT_PATH  # NOTE: queried and set below
+
 # XXX: host-specific hardcodes
 SYSTEMD_RUN=(
 	sudo systemd-run
@@ -364,6 +367,7 @@ setup_one() {
 			if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
 				aurbuild_args+=(
 					--bind-rw "$SCRATCH_ROOT":/build
+					--bind-rw "$CONTAINERS_ROOT":/var/lib/containers
 				)
 			fi
 			if ! [[ ${ARG_NO_CCACHE+set} ]]; then
@@ -372,6 +376,24 @@ setup_one() {
 					--bind-rw "$SCCACHE_ROOT"
 				)
 			fi
+
+			# XXX ridiculously ugly host-dependent hack for launching
+			# podman containers inside systemd-nspawn because kernel
+			# wants to see an unobscured proc _somewhere_ prior to
+			# allowing podman to mount a new proc inside the userns
+			# "you need a /proc mount to be fully visible before you
+			# can mount a new proc"
+			# (cf. https://github.com/containers/podman/issues/9813)
+			# and nspawn obscures parts of proc by overmounting
+			# without an option to prevent that.
+			#
+			# The fun begins when there's more than one layer of
+			# nspawn in the mix, which means we gotta pass an
+			# unobscured proc from the top level.
+			aurbuild_args+=(
+				--bind-rw /proc2:/proc2
+				--bind-rw /sys2:/sys2
+			)
 		fi
 
 		if ! [[ ${ARG_UNCLEAN+set} ]]; then
@@ -790,6 +812,16 @@ bld_setup
 # Update chroot
 if [[ $ARG_CHROOT != no ]]; then
 	bld_aur_chroot --create --update
+	CHROOT_PATH="$(bld_aur_chroot --path)"
+
+	# XXX host-specific overrides
+	log "Hacking up subuid and subgid at $CHROOT_PATH"
+	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subuid"
+builduser:100000:65536
+EOF
+	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subgid"
+builduser:100000:65536
+EOF
 fi
 
 # Load targets

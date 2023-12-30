@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# HACK: fix up $PATH in case we are running in a clean environment
+# HACK: fix up $PATH once we are running in clean environment
 # (/usr/bin/core_perl/pod2man)
-if ! [[ ${BLD_HAS_PROFILE+set} ]]; then
+if [[ ${BLD_REEXECUTED+set} && ! ${BLD_HAS_PROFILE+set} ]]; then
 	. /etc/profile
 	#. $HOME/.profile
 	. $HOME/.profile.pkgbuild
@@ -27,6 +27,16 @@ PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
 SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
 CCACHE_ROOT="/mnt/ssd/Scratch/makepkg-ccache"
 SCCACHE_ROOT="/mnt/ssd/Scratch/makepkg-sccache"
+# XXX: host-specific hardcodes
+SYSTEMD_RUN=(
+	sudo systemd-run
+)
+SYSTEMD_RUN_ARGS=(
+	-p Slice=system-cpu.slice
+	-p CPUSchedulingPolicy=batch
+	-p Nice=18
+	-E SSH_AUTH_SOCK
+)
 
 #
 # arguments & usage
@@ -717,6 +727,20 @@ bld_sub_build__exit() {
 #
 # main
 #
+
+# Reexecute in clean environment
+if ! [[ ${BLD_REEXECUTED+set} ]]; then
+	exec "${SYSTEMD_RUN[@]}" \
+		--pty \
+		--same-dir \
+		--wait \
+		--collect \
+		--service-type=exec \
+		"${SYSTEMD_RUN_ARGS[@]}" \
+		-p User=$(id -un) \
+		-E BLD_REEXECUTED=1 \
+		"$BASH_SOURCE" "$@"
+fi
 
 eval "$(globaltraps)"
 BLD_OK=0

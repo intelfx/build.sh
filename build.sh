@@ -350,7 +350,7 @@ setup_one() {
 
 	# FIXME read from package properties
 	case "$pkg" in
-	linux|linux-tools)
+	linux|linux-*)
 		# non-clean builds
 		local ARG_UNCLEAN=1
 		;;

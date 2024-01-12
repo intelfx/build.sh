@@ -830,7 +830,7 @@ bld_setup
 
 # Update chroot
 if [[ $ARG_CHROOT != no ]]; then
-	bld_aur_chroot --create --update
+	bld_aur_chroot --create --update -- -uu
 	CHROOT_PATH="$(bld_aur_chroot --path)"
 
 	# XXX host-specific overrides

@@ -352,60 +352,74 @@ setup_one() {
 	case "$pkg" in
 	linux|linux-tools)
 		# non-clean builds
+		local ARG_UNCLEAN=1
 		;;
 	*)
-		# build in a container
-		case "$ARG_CHROOT" in
-		no) ;;
-		keep) aurbuild_args+=( -c ) ;;
-		reuse) aurbuild_args+=( -c --cargs-no-default ) ;;
-		transient) aurbuild_args+=( -c -T ) ;;
-		*) die "Internal error: $(declare -p ARG_CHROOT)" ;;
-		esac
+		;;
+	esac
 
-		if [[ $ARG_CHROOT != no ]]; then
-			if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
-				aurbuild_args+=(
-					--bind-rw "$SCRATCH_ROOT":/build
-					--bind-rw "$CONTAINERS_ROOT":/build/.local/share/containers
-				)
-			fi
-			if ! [[ ${ARG_NO_CCACHE+set} ]]; then
-				aurbuild_args+=(
-					--bind-rw "$CCACHE_ROOT"
-					--bind-rw "$SCCACHE_ROOT"
-				)
-			fi
+	# set up chroot
+	case "$ARG_CHROOT" in
+	no) ;;
+	keep) aurbuild_args+=( -c ) ;;
+	reuse) aurbuild_args+=( -c --cargs-no-default ) ;;
+	transient) aurbuild_args+=( -c -T ) ;;
+	*) die "Internal error: $(declare -p ARG_CHROOT)" ;;
+	esac
 
-			# XXX ridiculously ugly host-dependent hack for launching
-			# podman containers inside systemd-nspawn because kernel
-			# wants to see an unobscured proc _somewhere_ prior to
-			# allowing podman to mount a new proc inside the userns
-			# "you need a /proc mount to be fully visible before you
-			# can mount a new proc"
-			# (cf. https://github.com/containers/podman/issues/9813)
-			# and nspawn obscures parts of proc by overmounting
-			# without an option to prevent that.
-			#
-			# The fun begins when there's more than one layer of
-			# nspawn in the mix, which means we gotta pass an
-			# unobscured proc from the top level.
+	# configure chroot
+	if [[ $ARG_CHROOT != no ]]; then
+		if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
 			aurbuild_args+=(
-				--bind-rw /proc2:/proc2
-				--bind-rw /sys2:/sys2
+				--bind-rw "$SCRATCH_ROOT":/build
+				--bind-rw "$CONTAINERS_ROOT":/build/.local/share/containers
+			)
+
+			local dir
+			for dir in "${EXTRA_BIND_DIRS[@]}"; do
+				aurbuild_args+=(
+					--bind "$dir:$dir"
+				)
+			done
+		fi
+		if ! [[ ${ARG_NO_CCACHE+set} ]]; then
+			aurbuild_args+=(
+				--bind-rw "$CCACHE_ROOT"
+				--bind-rw "$SCCACHE_ROOT"
 			)
 		fi
 
-		if ! [[ ${ARG_UNCLEAN+set} ]]; then
-			# optionally drop --clean here...
-			makepkg_args_prepare=( --cleanbuild --clean )
-			# ...and --cleanbuild here for a bit more spead and a bit less isolation
-			makepkg_args_build=( --cleanbuild --clean )
-		else
-			makepkg_args_prapare=()
-			makepkg_args_build=()
-		fi
-	esac
+		# XXX ridiculously ugly host-dependent hack for launching
+		# podman containers inside systemd-nspawn because kernel
+		# wants to see an unobscured proc _somewhere_ prior to
+		# allowing podman to mount a new proc inside the userns
+		# "you need a /proc mount to be fully visible before you
+		# can mount a new proc"
+		# (cf. https://github.com/containers/podman/issues/9813)
+		# and nspawn obscures parts of proc by overmounting
+		# without an option to prevent that.
+		#
+		# The fun begins when there's more than one layer of
+		# nspawn in the mix, which means we gotta pass an
+		# unobscured proc from the top level.
+		aurbuild_args+=(
+			--bind-rw /proc2:/proc2
+			--bind-rw /sys2:/sys2
+		)
+	fi
+
+	# set up srcdir cleanup
+	if ! [[ ${ARG_UNCLEAN+set} ]]; then
+		# optionally drop --clean here...
+		makepkg_args_prepare=( --cleanbuild --clean )
+		# ...and --cleanbuild here for a bit more spead and a bit less isolation
+		makepkg_args_build=( --cleanbuild --clean )
+	else
+		makepkg_args_prapare=()
+		makepkg_args_build=()
+	fi
+
+	# add default args
 	aurbuild_args+=( --remove )
 	makepkg_args_prepare+=( "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${ARGS_MAKEPKG[@]}" )

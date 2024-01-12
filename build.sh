@@ -31,6 +31,11 @@ CONTAINERS_ROOT="/mnt/ssd/Scratch/makepkg-containers"
 unset CHROOT_PATH  # NOTE: queried and set below
 
 # XXX: host-specific hardcodes
+EXTRA_BIND_DIRS=(
+	/home/operator/git
+)
+
+# XXX: host-specific hardcodes
 SYSTEMD_RUN=(
 	sudo systemd-run
 )

@@ -848,6 +848,10 @@ EOF
 [storage]
   driver_priority = [ "btrfs", "overlay" ]
 EOF
+	
+	# XXX host-specific overrides
+	log "Hacking up meson at $CHROOT_PATH"
+	sudo install -Dm755 "$HOME/bin/wrappers/meson" "$CHROOT_PATH/usr/local/bin/meson"
 fi
 
 # Load targets

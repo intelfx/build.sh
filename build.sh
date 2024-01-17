@@ -9,41 +9,59 @@ if [[ ${BLD_REEXECUTED+set} && ! ${BLD_HAS_PROFILE+set} ]]; then
 	export BLD_HAS_PROFILE=1
 fi
 
-. $HOME/bin/lib/lib.sh || exit
+BLD_ROOTDIR="$(dirname "$BASH_SOURCE")"
+BLD_CONFIG_DEFAULT="$BLD_ROOTDIR/config.sh"
+
+. "$BLD_ROOTDIR/lib/lib.sh" || exit
 shopt -s nullglob
+
+#
+# config
+#
+
+source "${ARG_CONFIG-$BLD_CONFIG_DEFAULT}"
 
 #
 # constants
 #
 
-PKGBUILD_ROOT="$HOME/pkgbuild"
-TARGETS_FILE="$PKGBUILD_ROOT/packages.txt"
+: ${PKGBUILD_ROOT="$HOME/pkgbuild"}
+: ${TARGETS_FILE="$PKGBUILD_ROOT/packages.txt"}
 
-WORKDIR_ROOT="$HOME/.pkgbuild.work"
-WORKDIR_MAX_AGE_SEC=3600
-REPO_NAME="custom"
-MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"
-PACMAN_CONF="/etc/aurutils/pacman-$REPO_NAME.conf"
-SCRATCH_ROOT="/mnt/ssd/Scratch/makepkg"
-CCACHE_ROOT="/mnt/ssd/Scratch/makepkg-ccache"
-SCCACHE_ROOT="/mnt/ssd/Scratch/makepkg-sccache"
-CONTAINERS_ROOT="/mnt/ssd/Scratch/makepkg-containers"
+: ${WORKDIR_ROOT="$HOME/.pkgbuild.work"}
+: ${WORKDIR_MAX_AGE_SEC=3600}
+: ${REPO_NAME=custom}
+: ${MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}
+: ${PACMAN_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}
+: ${SCRATCH_ROOT="/var/tmp/makepkg"}
+: ${CCACHE_ROOT="/var/tmp/makepkg-ccache"}
+: ${SCCACHE_ROOT="/var/tmp/makepkg-sccache"}
+: ${CONTAINERS_ROOT="/var/tmp/makepkg-containers"}
 unset CHROOT_PATH  # NOTE: queried and set below
 
-# XXX: host-specific hardcodes
+[[ ${EXTRA_BIND_DIRS+set} ]] || \
 EXTRA_BIND_DIRS=(
-	/home/operator/git
 )
 
-# XXX: host-specific hardcodes
+# XXX set this to EXTRA_BIND_APIVFS=("/proc:/proc2" "/sys:/sys2") if intending
+# to run podman (or any other containers w/ userns) from PKGBUILDs in chrooted
+# (systemd-nspawned) builds;
+# if bld is running in a systemd-nspawn itself, pass /proc:/proc2 and /sys:/sys2
+# from the top level into _this_ systemd-nspawn (or bind them from inside)
+# and then set this to EXTRA_BIND_APIVFS=("/proc2:/proc2" "/sys2:/sys2").
+#
+# For details, see below...
+[[ ${EXTRA_BIND_APIVFS+set} ]] || \
+EXTRA_BIND_APIVFS=(
+)
+
+[[ ${SYSTEMD_RUN+set} ]] || \
 SYSTEMD_RUN=(
 	sudo systemd-run
 )
+
+[[ ${SYSTEMD_RUN_ARGS+set} ]] || \
 SYSTEMD_RUN_ARGS=(
-	-p Slice=system-cpu.slice
-	-p CPUSchedulingPolicy=batch
-	-p Nice=18
-	-E SSH_AUTH_SOCK
 )
 
 #
@@ -406,10 +424,12 @@ setup_one() {
 		# The fun begins when there's more than one layer of
 		# nspawn in the mix, which means we gotta pass an
 		# unobscured proc from the top level.
-		aurbuild_args+=(
-			--bind-rw /proc2:/proc2
-			--bind-rw /sys2:/sys2
-		)
+		local dir
+		for dir in "${EXTRA_BIND_APIVFS[@]}"; do
+			aurbuild_args+=(
+				--bind-rw "$dir"
+			)
+		done
 	fi
 
 	# set up srcdir cleanup

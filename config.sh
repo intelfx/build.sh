@@ -14,6 +14,7 @@ SCCACHE_ROOT="/mnt/ssd/Cache/makepkg-sccache"
 CONTAINERS_ROOT="/mnt/ssd/Cache/makepkg-containers"
 
 EXTRA_AURBUILD_ARGS=()
+EXTRA_MAKECHROOTPKG_ARGS=()
 EXTRA_MAKEPKG_ARGS=()
 
 EXTRA_BIND_DIRS=(

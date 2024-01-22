@@ -445,6 +445,7 @@ setup_one() {
 
 	# add default, config and command-line args
 	aurbuild_args+=( --remove "${EXTRA_AURBUILD_ARGS[@]}" )
+	makechrootpkg_args+=( "${EXTRA_MAKECHROOTPKG_ARGS[@]}" )
 	makepkg_args_prepare+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
 
@@ -503,6 +504,7 @@ bld_aur_build() {
 		--makepkg-conf "$MAKEPKG_CONF" \
 		"${aurbuild_args[@]}" \
 		--margs "$(join ',' "${makepkg_args_build[@]}")" \
+		--cargs "$(join ',' "${makechrootpkg_args[@]}")" \
 		"$@"
 }
 
@@ -601,7 +603,7 @@ bld_phase() {
 
 bld_sub_build() {
 	local pkg pkg_dir pkgbuild_dir
-	declare -a aurbuild_args makepkg_args_prepare makepkg_args_build
+	declare -a aurbuild_args makechrootpkg_args makepkg_args_prepare makepkg_args_build
 	setup_one "$@"
 	cd "$pkgbuild_dir"
 
@@ -617,7 +619,7 @@ bld_sub_build() {
 bld_sub_fetch() {
 	eval "$(ltraps)"
 	local pkg pkg_dir pkgbuild_dir
-	declare -a aurbuild_args makepkg_args_prepare makepkg_args_build
+	declare -a aurbuild_args makechrootpkg_args makepkg_args_prepare makepkg_args_build
 
 	setup_one_pre "$@"
 
@@ -904,7 +906,13 @@ declare -A FETCH_MSGS=(
 	[die_rc]='Encountered other errors while fetching, aborting'
 )
 _phase_fetch() {
-	parallel --bar "$0 ${ARGS_PASS[@]@Q} --sub=fetch {}" ::: "$@" || rc=$?
+	local -a parallel_args
+	if bld_workdir_check_file "targets_list"; then
+		parallel_args+=( -j1 --tty )
+	else
+		parallel_args+=( -j$(nproc) --bar )
+	fi
+	parallel "${parallel_args[@]}" "$0 ${ARGS_PASS[@]@Q} --sub=fetch {}" ::: "$@" || rc=$?
 }
 bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch
 

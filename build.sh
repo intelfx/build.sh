@@ -443,10 +443,10 @@ setup_one() {
 		makepkg_args_build=()
 	fi
 
-	# add default args
-	aurbuild_args+=( --remove )
-	makepkg_args_prepare+=( "${ARGS_MAKEPKG[@]}" )
-	makepkg_args_build+=( "${ARGS_MAKEPKG[@]}" )
+	# add default, config and command-line args
+	aurbuild_args+=( --remove "${EXTRA_AURBUILD_ARGS[@]}" )
+	makepkg_args_prepare+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
+	makepkg_args_build+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
 
 	# FIXME this is dirty
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then

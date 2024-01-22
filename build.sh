@@ -439,7 +439,7 @@ setup_one() {
 		# ...and --cleanbuild here for a bit more spead and a bit less isolation
 		makepkg_args_build=( --cleanbuild --clean )
 	else
-		makepkg_args_prapare=()
+		makepkg_args_prepare=()
 		makepkg_args_build=()
 	fi
 

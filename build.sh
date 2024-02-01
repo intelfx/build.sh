@@ -326,7 +326,10 @@ export CCACHE_DIR="$CCACHE_ROOT"
 export CCACHE_CONFIGPATH="$CCACHE_ROOT/ccache.conf"
 export SCCACHE_DIR="$SCCACHE_ROOT"
 export SCCACHE_CONF="$SCCACHE_ROOT/sccache.conf"
-export CCACHE_BASEDIR="\$BUILDDIR"
+
+# Unholy hack because makechrootpkg _appends_ BUILDDIR= to the makepkg.conf,
+# and we want the final \$BUILDDIR, not the one that's set by this point.
+trap 'export CCACHE_BASEDIR="\$BUILDDIR"' RETURN
 EOF
 		ltrap "rm -f '$MAKEPKG_CONF_CCACHE'"
 		# pass $MAKEPKG_CONF_CCACHE to subprocesses, which will

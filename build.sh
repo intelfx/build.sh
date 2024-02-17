@@ -101,7 +101,7 @@ declare -A ARGS=(
 	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
 	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
 	[--reset]=ARG_RESET
-	[--continue]=ARG_CONTINUE
+	[--continue::]="ARG_CONTINUE default="
 	[--]=ARG_TARGETS
 )
 parse_args ARGS "$@" || usage
@@ -313,6 +313,33 @@ bld_want_workdir() {
 		return 1
 	fi
 	return 0
+}
+
+bld_setup_workdir() {
+	# cleanup finished workdirs
+	find "$WORKDIR_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | while read name; do
+		if bld_not_want_workdir "$name"; then
+			log "Removing obsolete session $name"
+			bld_remove_workdir "$name"
+		fi
+	done
+
+	# NOTE: $ARG_CONTINUE is used both as a session name (when nonempty)
+	#       and as a behavior modifier inside bld_want_workdir() (when set).
+	#       Since we generally want to use the session we were given (i. e.
+	#       we want that modifier when handling an explicitly given workdir),
+	#       it all works out.
+	if [[ ${ARG_CONTINUE:+nonempty} ]]; then
+		if bld_want_workdir "$ARG_CONTINUE" && bld_use_workdir "$ARG_CONTINUE"; then
+			return
+		else
+			die "Failed to enter session $ARG_CONTINUE"
+		fi
+	elif bld_want_workdir last && bld_use_workdir last; then
+		return
+	else
+		bld_make_workdir
+	fi
 }
 
 bld_setup() {
@@ -846,21 +873,7 @@ fi
 
 # Prepare workdir
 if ! bld_has_workdir; then
-	# cleanup finished workdirs
-	find "$WORKDIR_ROOT" -mindepth 1 -maxdepth 1 -type d | while read d; do
-		name="$(basename "$d")"
-		if bld_not_want_workdir "$name"; then
-			log "Cleaning obsolete workdir $name"
-			bld_remove_workdir "$name"
-		fi
-	done
-
-	# TODO: look for other workdirs to continue, not just last
-	if bld_want_workdir last; then
-		bld_use_workdir last
-	else
-		bld_make_workdir
-	fi
+	bld_setup_workdir
 fi
 bld_workdir_update_timestamp
 

@@ -44,6 +44,7 @@ source "${ARG_CONFIG-$BLD_CONFIG_DEFAULT}"
 
 : ${WORKDIR_ROOT="$HOME/.pkgbuild.work"}
 : ${WORKDIR_MAX_AGE_SEC=3600}
+: ${WORKDIR_HARD_MAX_AGE_SEC=86400}
 : ${REPO_NAME=custom}
 : ${MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}
 : ${PACMAN_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}
@@ -207,6 +208,10 @@ bld_check_workdir_get_file() {
 	cat "$WORKDIR_ROOT/$1/$2"
 }
 
+bld_check_workdir_stat_file() {
+	[[ -e "$WORKDIR_ROOT/$1/$2" ]] && stat "$WORKDIR_ROOT/$1/$2" -c "$3" "${@:4}"
+}
+
 bld_workdir_file() {
 	echo "$BLD_WORKDIR/$1"
 }
@@ -259,9 +264,21 @@ bld_workdir_update_timestamp() {
 }
 
 bld_not_want_workdir() {
+	# is workdir inaccessible?
 	bld_check_workdir "$1" || return 0
-	bld_check_workdir_file "$1" ".finished" && return 0
+	# is workdir finished?
+	! bld_check_workdir_file "$1" ".finished" || return 0
+	# does workdir have no targets?
 	bld_check_workdir_file_nonempty "$1" "targets" || return 0
+	# does workdir have no timestamp?
+	bld_check_workdir_file "$1" ".timestamp" || return 0
+
+	local a b 
+	a="$(bld_check_workdir_stat_file "$1" ".timestamp" '%Y')" || return 0
+	b="$(date '+%s')"
+	# is workdir _VERY_ old?
+	(( a > b - WORKDIR_HARD_MAX_AGE_SEC )) || return 0
+
 	return 1
 }
 
@@ -279,16 +296,15 @@ bld_want_workdir() {
 
 	# check timestamp
 	# (if --continue, keep going)
-	if bld_check_workdir_file "$1" ".timestamp"; then
-		local a="$(stat -c '%Y' "$(bld_check_workdir_get_filename "$1" ".timestamp")")"
-		local b="$(date '+%s')"
-		if ! (( a > b - WORKDIR_MAX_AGE_SEC )); then
-			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: workdir $label older than ${WORKDIR_MAX_AGE_SEC}s (continuing anyway)"
-			else
-				log "bld: not using workdir $label -- older than ${WORKDIR_MAX_AGE_SEC}s"
-				return 1
-			fi
+	local a b 
+	a="$(bld_check_workdir_stat_file "$1" ".timestamp" '%Y')"
+	b="$(date '+%s')"
+	if ! (( a > b - WORKDIR_MAX_AGE_SEC )); then
+		if [[ ${ARG_CONTINUE+set} ]]; then
+			warn "bld: workdir $label older than ${WORKDIR_MAX_AGE_SEC}s (continuing anyway)"
+		else
+			log "bld: not using workdir $label -- older than ${WORKDIR_MAX_AGE_SEC}s"
+			return 1
 		fi
 	fi
 

@@ -145,11 +145,13 @@ bld_make_workdir() {
 
 	mkdir -p "$WORKDIR_ROOT"
 
-	local workdir workname
+	local workdir workname worklabel
 	workdir="$(mktemp -d -p "$WORKDIR_ROOT")"
 	workname="${workdir#$WORKDIR_ROOT/}"
+	worklabel="$workname"
+
 	ln -rsf "$workdir" -T "$WORKDIR_ROOT/last"
-	log "Starting session $(basename "$workdir")"
+	log "Starting session $worklabel"
 
 	export BLD_WORKDIR="$workdir"
 	export BLD_WORKDIR_NAME="$workname"
@@ -160,13 +162,25 @@ bld_use_workdir() {
 		return
 	fi
 
-	local workdir workname
+	local workdir workname worklabel
 	workdir="$(realpath -qe "$WORKDIR_ROOT/$1")"
 	workname="$1"
-	log "Entering session $(basename "$workdir")"
+	worklabel="$(bld_workdir_label "$1")"
+
+	log "Entering session $worklabel"
 
 	export BLD_WORKDIR="$workdir"
 	export BLD_WORKDIR_NAME="$workname"
+}
+
+bld_workdir_label() {
+	local workdir
+	workdir="$(realpath --relative-to="$WORKDIR_ROOT" --relative-base="$WORKDIR_ROOT" "$WORKDIR_ROOT/$1")"
+	if [[ $workdir == $1 ]]; then
+		echo "$1"
+	else
+		echo "$1 ($workdir)"
+	fi
 }
 
 bld_remove_workdir() {
@@ -252,13 +266,16 @@ bld_not_want_workdir() {
 }
 
 bld_want_workdir() {
-	# basic checks
-	bld_not_want_workdir "$1" && return 1
-
 	# if --reset, never use a workdir
 	if [[ ${ARG_RESET+set} ]]; then
 		return 1
 	fi
+
+	# basic checks
+	bld_not_want_workdir "$1" && return 1
+
+	local label
+	label="$(bld_workdir_label "$1")"
 
 	# check timestamp
 	# (if --continue, keep going)
@@ -267,9 +284,9 @@ bld_want_workdir() {
 		local b="$(date '+%s')"
 		if ! (( a > b - WORKDIR_MAX_AGE_SEC )); then
 			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: workdir $1 older than ${WORKDIR_MAX_AGE_SEC}s (continuing anyway)"
+				warn "bld: workdir $label older than ${WORKDIR_MAX_AGE_SEC}s (continuing anyway)"
 			else
-				log "bld: not using workdir $1 -- older than ${WORKDIR_MAX_AGE_SEC}s"
+				log "bld: not using workdir $label -- older than ${WORKDIR_MAX_AGE_SEC}s"
 				return 1
 			fi
 		fi
@@ -281,9 +298,9 @@ bld_want_workdir() {
 		# workdir has implicit targets -- verify they did not change
 		if [[ ${ARG_TARGETS+set} ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: not using workdir $1 -- explicit targets set"
+				warn "bld: not using workdir $label -- explicit targets set"
 			else
-				log "bld: not using workdir $1 -- explicit targets set"
+				log "bld: not using workdir $label -- explicit targets set"
 			fi
 			return 1
 		fi
@@ -291,9 +308,9 @@ bld_want_workdir() {
 		local b="$(cat_config "$TARGETS_FILE")"
 		if ! [[ $a == $b ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: workdir $1 has different targets (continuing anyway)"
+				warn "bld: workdir $label has different targets (continuing anyway)"
 			else
-				log "bld: not using workdir $1 -- targets file changed"
+				log "bld: not using workdir $label -- targets file changed"
 				return 1
 			fi
 		fi
@@ -306,14 +323,14 @@ bld_want_workdir() {
 		local b="$(print_array "${ARG_TARGETS[@]}")"
 		if ! [[ $a == $b ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: not using workdir $1 -- explicit targets changed"
+				warn "bld: not using workdir $label -- explicit targets changed"
 			else
-				log "bld: not using workdir $1 -- explicit targets changed"
+				log "bld: not using workdir $label -- explicit targets changed"
 			fi
 			return 1
 		fi
 	else
-		err "bld: bad workdir $1 -- targets_{file,list} not present"
+		err "bld: bad workdir $label -- targets_{file,list} not present"
 		return 1
 	fi
 	return 0

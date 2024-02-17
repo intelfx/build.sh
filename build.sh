@@ -145,12 +145,14 @@ bld_make_workdir() {
 
 	mkdir -p "$WORKDIR_ROOT"
 
-	local workdir
+	local workdir workname
 	workdir="$(mktemp -d -p "$WORKDIR_ROOT")"
+	workname="${workdir#$WORKDIR_ROOT/}"
 	ln -rsf "$workdir" -T "$WORKDIR_ROOT/last"
 	log "Starting session $(basename "$workdir")"
 
 	export BLD_WORKDIR="$workdir"
+	export BLD_WORKDIR_NAME="$workname"
 }
 
 bld_use_workdir() {
@@ -158,11 +160,13 @@ bld_use_workdir() {
 		return
 	fi
 
-	local workdir
+	local workdir workname
 	workdir="$(realpath -qe "$WORKDIR_ROOT/$1")"
+	workname="$1"
 	log "Entering session $(basename "$workdir")"
 
 	export BLD_WORKDIR="$workdir"
+	export BLD_WORKDIR_NAME="$workname"
 }
 
 bld_remove_workdir() {
@@ -633,11 +637,15 @@ bld_phase() {
 	fi
 
 	if (( rc && err )); then
-		dief "${msgs[die_failed]}"
+		errf "${msgs[die_failed]}"
 	elif (( !rc && err )); then
-		dief "${msgs[die_missed]}"
+		errf "${msgs[die_missed]}"
 	elif (( rc && !err )); then
-		dief "${msgs[die_rc]}"
+		errf "${msgs[die_rc]}"
+	fi
+	if (( rc || err )); then
+		err "(Run $BLD_ARGV0 --continue=${BLD_WORKDIR_NAME@Q} to retry)"
+		exit 1
 	fi
 }
 

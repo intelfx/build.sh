@@ -153,8 +153,21 @@ bld_make_workdir() {
 	workname="${workdir#$WORKDIR_ROOT/}"
 	worklabel="$workname"
 
-	ln -rsf "$workdir" -T "$WORKDIR_ROOT/last"
+	if ! bld_lock_workdir "$workname"; then
+		die "bld: failed to lock newly created workdir $worklabel"
+	fi
+
 	log "Starting session $worklabel"
+
+	(
+	# lock in a subshell
+	bld_unlock_workdir "$workname"
+	if ! bld_check_workdir "last" || bld_lock_workdir "last" --nonblock; then
+		ln -rsf "$workdir" -T "$WORKDIR_ROOT/last"
+	else
+		log "bld: not updating workdir $(bld_workdir_label last) -- locked"
+	fi
+	)
 
 	export BLD_WORKDIR="$workdir"
 	export BLD_WORKDIR_NAME="$workname"
@@ -170,10 +183,49 @@ bld_use_workdir() {
 	workname="$1"
 	worklabel="$(bld_workdir_label "$1")"
 
+	if ! bld_lock_workdir "$workname" --nonblock; then
+		err "bld: failed to lock workdir $worklabel"
+		return 1
+	fi
+
 	log "Entering session $worklabel"
 
 	export BLD_WORKDIR="$workdir"
 	export BLD_WORKDIR_NAME="$workname"
+}
+
+bld_lock_workdir() {
+	local lockfile
+	lockfile="$(bld_check_workdir_get_filename "$1" ".lock")"
+	shift 1
+
+	touch "$lockfile"
+	if ! [[ -e /dev/fd/9 ]]; then
+		exec 9<"$lockfile"
+	elif ! [[ $lockfile -ef /dev/fd/9 ]]; then
+		die "bld: attempting to lock another workdir"
+	fi
+	if ! flock "$@" 9; then
+		exec 9<&-
+		return 1
+	fi
+}
+
+bld_lock_workdir_trap() {
+	ltrap "bld_unlock_workdir '$1'"
+	bld_lock_workdir "$@" || { rc=$?; luntrap; return $rc; }
+}
+
+bld_unlock_workdir() {
+	local lockfile
+	lockfile="$(bld_check_workdir_get_filename "$1" ".lock")"
+	shift 1
+
+	if ! [[ "$lockfile" -ef /dev/fd/9 ]]; then
+		err "bld: not unlocking workdir $(bld_workdir_label "$1") -- not locked"
+		return 1
+	fi
+	exec 9<&-
 }
 
 bld_workdir_label() {
@@ -296,6 +348,13 @@ bld_want_workdir() {
 	local label
 	label="$(bld_workdir_label "$1")"
 
+	# check lock
+	eval "$(ltraps)"
+	if ! bld_lock_workdir_trap "$1" --nonblock; then
+		log "bld: not using workdir $label -- locked"
+		return 1
+	fi
+
 	# check timestamp
 	# (if --continue, keep going)
 	local a b 
@@ -351,6 +410,9 @@ bld_want_workdir() {
 		err "bld: bad workdir $label -- targets_{file,list} not present"
 		return 1
 	fi
+
+	# return locked
+	luntrap
 	return 0
 }
 

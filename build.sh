@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# Remember original $0 for error messages
+if ! [[ ${BLD_ARGV0+set} ]]; then
+	# Apparently, interpreted execution on Linux provides no way
+	# to acquire the original $0 with which the script was invoked.
+	# (https://stackoverflow.com/a/37369285/857932)
+	# Try to re-derive it.
+	for BLD_ARGV0 in "${0##*/}" "$0" "$BASH_SOURCE"; do
+		if [[ "$(command -v "$BLD_ARGV0")" -ef "$BASH_SOURCE" ]]; then
+			break
+		fi
+	done
+	export BLD_ARGV0
+fi
+
 # HACK: fix up $PATH once we are running in clean environment
 # (/usr/bin/core_perl/pod2man)
 if [[ ${BLD_REEXECUTED+set} && ! ${BLD_HAS_PROFILE+set} ]]; then
@@ -70,7 +84,7 @@ SYSTEMD_RUN_ARGS=(
 
 _usage() {
 	cat <<EOF
-Usage: $0 foobar
+Usage: $BLD_ARGV0 foobar
 EOF
 }
 
@@ -804,6 +818,7 @@ if ! [[ ${BLD_REEXECUTED+set} ]]; then
 		"${SYSTEMD_RUN_ARGS[@]}" \
 		-p User=$(id -un) \
 		-E BLD_REEXECUTED=1 \
+		-E BLD_ARGV0="$BLD_ARGV0" \
 		"$BASH_SOURCE" "$@"
 fi
 

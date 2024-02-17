@@ -65,10 +65,12 @@ EXTRA_BIND_DIRS=(
 # from the top level into _this_ systemd-nspawn (or bind them from inside)
 # and then set this to EXTRA_BIND_APIVFS=("/proc2:/proc2" "/sys2:/sys2").
 #
+# XXX this does not work, you need to patch devtools
+#
 # For details, see below...
-[[ ${EXTRA_BIND_APIVFS+set} ]] || \
-EXTRA_BIND_APIVFS=(
-)
+#[[ ${EXTRA_BIND_APIVFS+set} ]] || \
+#EXTRA_BIND_APIVFS=(
+#)
 
 [[ ${SYSTEMD_RUN+set} ]] || \
 SYSTEMD_RUN=(
@@ -505,12 +507,16 @@ setup_one() {
 		# The fun begins when there's more than one layer of
 		# nspawn in the mix, which means we gotta pass an
 		# unobscured proc from the top level.
-		local dir
-		for dir in "${EXTRA_BIND_APIVFS[@]}"; do
-			aurbuild_args+=(
-				--bind-rw "$dir"
-			)
-		done
+		#
+		# XXX podman also needs --system-call-filter @keyring,
+		# so we have to patch devtools anyway...
+
+		#local dir
+		#for dir in "${EXTRA_BIND_APIVFS[@]}"; do
+		#	aurbuild_args+=(
+		#		--bind-rw "$dir"
+		#	)
+		#done
 	fi
 
 	# set up srcdir cleanup

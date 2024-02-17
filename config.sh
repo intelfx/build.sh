@@ -20,10 +20,6 @@ EXTRA_MAKEPKG_ARGS=()
 EXTRA_BIND_DIRS=(
 	#/path/to/local/git
 )
-EXTRA_BIND_APIVFS=(
-	#/proc:/proc2
-	#/sys:/sys2
-)
 
 SYSTEMD_RUN=(
 	sudo systemd-run

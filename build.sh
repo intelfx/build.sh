@@ -149,7 +149,7 @@ bld_make_workdir() {
 	mkdir -p "$WORKDIR_ROOT"
 
 	local workdir workname worklabel
-	workdir="$(mktemp -d -p "$WORKDIR_ROOT")"
+	workdir="$(mktemp -d -p "$WORKDIR_ROOT" "$(date -Iminutes).XXX")"
 	workname="${workdir#$WORKDIR_ROOT/}"
 	worklabel="$workname"
 

@@ -180,8 +180,12 @@ bld_use_workdir() {
 
 	local workdir workname worklabel
 	workdir="$(realpath -qe "$WORKDIR_ROOT/$1")"
-	workname="$1"
+	workname="$(realpath -qe --relative-to="$WORKDIR_ROOT" --relative-base="$WORKDIR_ROOT" "$WORKDIR_ROOT/$1")"
 	worklabel="$(bld_workdir_label "$1")"
+
+	if ! [[ $workname != /* ]]; then
+		die "bld: invalid workdir: $1"
+	fi
 
 	if ! bld_lock_workdir "$workname" --nonblock; then
 		err "bld: failed to lock workdir $worklabel"

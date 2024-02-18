@@ -157,8 +157,6 @@ bld_make_workdir() {
 		die "bld: failed to lock newly created workdir $worklabel"
 	fi
 
-	log "Starting session $worklabel"
-
 	(
 	# lock in a subshell
 	if ! bld_check_workdir "last" || { bld_unlock; bld_lock_workdir "last" --nonblock; }; then
@@ -167,6 +165,8 @@ bld_make_workdir() {
 		log "bld: not updating workdir $(bld_workdir_label last) -- locked"
 	fi
 	)
+
+	log "Starting session $worklabel"
 
 	export BLD_WORKDIR="$workdir"
 	export BLD_WORKDIR_NAME="$workname"

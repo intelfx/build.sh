@@ -161,8 +161,7 @@ bld_make_workdir() {
 
 	(
 	# lock in a subshell
-	bld_unlock_workdir "$workname"
-	if ! bld_check_workdir "last" || bld_lock_workdir "last" --nonblock; then
+	if ! bld_check_workdir "last" || { bld_unlock; bld_lock_workdir "last" --nonblock; }; then
 		ln -rsf "$workdir" -T "$WORKDIR_ROOT/last"
 	else
 		log "bld: not updating workdir $(bld_workdir_label last) -- locked"
@@ -227,6 +226,14 @@ bld_unlock_workdir() {
 
 	if ! [[ "$lockfile" -ef /dev/fd/9 ]]; then
 		err "bld: not unlocking workdir $(bld_workdir_label "$1") -- not locked"
+		return 1
+	fi
+	exec 9<&-
+}
+
+bld_unlock() {
+	if ! [[ -e /dev/fd/9 ]]; then
+		err "bld: not unlocking workdir -- not locked"
 		return 1
 	fi
 	exec 9<&-

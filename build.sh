@@ -7,6 +7,68 @@ BLD_CONFIG_DEFAULT="$BLD_ROOT_DIR/config.sh"
 
 
 #
+# arguments & usage
+#
+
+_usage_common_syntax="Usage: $BLD_ARGV0 [-c|--config CONFIG]"
+_usage_common_options="
+Global options:
+	-h|--help		Print this usage help
+	-c|--config CONFIG 	Path to main configuration file or directory
+"
+
+_usage() {
+	cat <<EOF
+$BLD_ARGV0 -- opinionated package builder
+
+$_usage_common_syntax [OPTIONS...] [PACKAGES...]
+$_usage_common_options
+
+Meta options:
+	--reset
+	--continue[=SESSION]
+
+Package selection options:
+	--exclude PACKAGE[,...]
+
+Behavior modifiers:
+	--rebuild
+	--no-pull
+
+Build environment options:
+	--no-ccache
+	--no-chroot
+	--keep-chroot
+	--reuse-chroot
+	--isolate-chroot
+	--unclean
+
+Build process options:
+	--margs MAKEPKG-ARG[,...]
+EOF
+}
+
+declare -A ARGS=(
+	[--sub:]=ARG_SUBROUTINE
+	[--margs:]="ARGS_MAKEPKG split=, append pass=ARGS_PASS"
+	[--exclude:]="ARGS_EXCLUDE split=, append pass=ARGS_PASS"
+	[--rebuild]="ARG_REBUILD pass=ARGS_PASS"
+	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
+	[--no-chroot]="ARG_NO_CHROOT pass=ARGS_PASS"
+	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
+	[--reuse-chroot]="ARG_REUSE_CHROOT pass=ARGS_PASS"
+	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
+	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
+	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
+	[--reset]=ARG_RESET
+	[--continue::]="ARG_CONTINUE default="
+	[--]=ARG_TARGETS
+)
+
+parse_args ARGS "$@" || usage ""
+
+
+#
 # config
 #
 
@@ -58,34 +120,6 @@ SYSTEMD_RUN=(
 [[ ${SYSTEMD_RUN_ARGS+set} ]] || \
 SYSTEMD_RUN_ARGS=(
 )
-
-#
-# arguments & usage
-#
-
-_usage() {
-	cat <<EOF
-Usage: $BLD_ARGV0 foobar
-EOF
-}
-
-declare -A ARGS=(
-	[--sub:]=ARG_SUBROUTINE
-	[--margs:]="ARGS_MAKEPKG split=, append pass=ARGS_PASS"
-	[--exclude:]="ARGS_EXCLUDE split=, append pass=ARGS_PASS"
-	[--rebuild]="ARG_REBUILD pass=ARGS_PASS"
-	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
-	[--no-chroot]="ARG_NO_CHROOT pass=ARGS_PASS"
-	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
-	[--reuse-chroot]="ARG_REUSE_CHROOT pass=ARGS_PASS"
-	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
-	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
-	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
-	[--reset]=ARG_RESET
-	[--continue::]="ARG_CONTINUE default="
-	[--]=ARG_TARGETS
-)
-parse_args ARGS "$@" || usage
 
 # convert some arguments from a user-preferred form into the
 # developer-preferred form

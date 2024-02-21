@@ -25,3 +25,5 @@ if [[ ${BLD_REEXECUTED+set} && ! ${BLD_HAS_PROFILE+set} ]]; then
 	. $HOME/.profile.pkgbuild
 	export BLD_HAS_PROFILE=1
 fi
+
+LIBSH_LOG_PREFIX="$BLD_ARGV0"

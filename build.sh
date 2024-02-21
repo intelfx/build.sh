@@ -127,7 +127,7 @@ bld_make_workdir() {
 	worklabel="$workname"
 
 	if ! bld_lock_workdir "$workname"; then
-		die "bld: failed to lock newly created workdir $worklabel"
+		die "failed to lock newly created workdir $worklabel"
 	fi
 
 	(
@@ -135,7 +135,7 @@ bld_make_workdir() {
 	if ! bld_check_workdir "last" || { bld_unlock; bld_lock_workdir "last" --nonblock; }; then
 		ln -rsf "$workdir" -T "$WORKDIR_ROOT/last"
 	else
-		log "bld: not updating workdir $(bld_workdir_label last) -- locked"
+		log "not updating workdir $(bld_workdir_label last) -- locked"
 	fi
 	)
 
@@ -156,11 +156,11 @@ bld_use_workdir() {
 	worklabel="$(bld_workdir_label "$1")"
 
 	if ! [[ $workname != /* ]]; then
-		die "bld: invalid workdir: $1"
+		die "invalid workdir: $1"
 	fi
 
 	if ! bld_lock_workdir "$workname" --nonblock; then
-		err "bld: failed to lock workdir $worklabel"
+		err "failed to lock workdir $worklabel"
 		return 1
 	fi
 
@@ -179,7 +179,7 @@ bld_lock_workdir() {
 	if ! [[ -e /dev/fd/9 ]]; then
 		exec 9<"$lockfile"
 	elif ! [[ $lockfile -ef /dev/fd/9 ]]; then
-		die "bld: attempting to lock another workdir"
+		die "attempting to lock another workdir"
 	fi
 	if ! flock "$@" 9; then
 		exec 9<&-
@@ -198,7 +198,7 @@ bld_unlock_workdir() {
 	shift 1
 
 	if ! [[ "$lockfile" -ef /dev/fd/9 ]]; then
-		err "bld: not unlocking workdir $(bld_workdir_label "$1") -- not locked"
+		err "not unlocking workdir $(bld_workdir_label "$1") -- not locked"
 		return 1
 	fi
 	exec 9<&-
@@ -206,7 +206,7 @@ bld_unlock_workdir() {
 
 bld_unlock() {
 	if ! [[ -e /dev/fd/9 ]]; then
-		err "bld: not unlocking workdir -- not locked"
+		err "not unlocking workdir -- not locked"
 		return 1
 	fi
 	exec 9<&-
@@ -335,7 +335,7 @@ bld_want_workdir() {
 	# check lock
 	eval "$(ltraps)"
 	if ! bld_lock_workdir_trap "$1" --nonblock; then
-		log "bld: not using workdir $label -- locked"
+		log "not using workdir $label -- locked"
 		return 1
 	fi
 
@@ -346,9 +346,9 @@ bld_want_workdir() {
 	b="$(date '+%s')"
 	if ! (( a > b - WORKDIR_MAX_AGE_SEC )); then
 		if [[ ${ARG_CONTINUE+set} ]]; then
-			warn "bld: workdir $label older than ${WORKDIR_MAX_AGE_SEC}s (continuing anyway)"
+			warn "workdir $label older than ${WORKDIR_MAX_AGE_SEC}s (continuing anyway)"
 		else
-			log "bld: not using workdir $label -- older than ${WORKDIR_MAX_AGE_SEC}s"
+			log "not using workdir $label -- older than ${WORKDIR_MAX_AGE_SEC}s"
 			return 1
 		fi
 	fi
@@ -359,9 +359,9 @@ bld_want_workdir() {
 		# workdir has implicit targets -- verify they did not change
 		if [[ ${ARG_TARGETS+set} ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: not using workdir $label -- explicit targets set"
+				warn "not using workdir $label -- explicit targets set"
 			else
-				log "bld: not using workdir $label -- explicit targets set"
+				log "not using workdir $label -- explicit targets set"
 			fi
 			return 1
 		fi
@@ -369,9 +369,9 @@ bld_want_workdir() {
 		local b="$(cat_config "$TARGETS_FILE")"
 		if ! [[ $a == $b ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: workdir $label has different targets (continuing anyway)"
+				warn "workdir $label has different targets (continuing anyway)"
 			else
-				log "bld: not using workdir $label -- targets file changed"
+				log "not using workdir $label -- targets file changed"
 				return 1
 			fi
 		fi
@@ -384,14 +384,14 @@ bld_want_workdir() {
 		local b="$(print_array "${ARG_TARGETS[@]}")"
 		if ! [[ $a == $b ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
-				warn "bld: not using workdir $label -- explicit targets changed"
+				warn "not using workdir $label -- explicit targets changed"
 			else
-				log "bld: not using workdir $label -- explicit targets changed"
+				log "not using workdir $label -- explicit targets changed"
 			fi
 			return 1
 		fi
 	else
-		err "bld: bad workdir $label -- targets_{file,list} not present"
+		err "bad workdir $label -- targets_{file,list} not present"
 		return 1
 	fi
 

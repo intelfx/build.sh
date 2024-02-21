@@ -23,10 +23,10 @@ if [[ ${BLD_REEXECUTED+set} && ! ${BLD_HAS_PROFILE+set} ]]; then
 	export BLD_HAS_PROFILE=1
 fi
 
-BLD_ROOTDIR="$(dirname "$BASH_SOURCE")"
-BLD_CONFIG_DEFAULT="$BLD_ROOTDIR/config.sh"
+BLD_ROOT_DIR="$(dirname "$BASH_SOURCE")"
+BLD_CONFIG_DEFAULT="$BLD_ROOT_DIR/config.sh"
 
-. "$BLD_ROOTDIR/lib/lib.sh" || exit
+. "$BLD_ROOT_DIR/lib/lib.sh" || exit
 shopt -s nullglob
 
 

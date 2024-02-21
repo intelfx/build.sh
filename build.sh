@@ -139,7 +139,7 @@ bld_make_workdir() {
 	fi
 	)
 
-	log "Starting session $worklabel"
+	log "starting session $worklabel"
 
 	export BLD_WORKDIR="$workdir"
 	export BLD_WORKDIR_NAME="$workname"
@@ -164,7 +164,7 @@ bld_use_workdir() {
 		return 1
 	fi
 
-	log "Entering session $worklabel"
+	log "entering session $worklabel"
 
 	export BLD_WORKDIR="$workdir"
 	export BLD_WORKDIR_NAME="$workname"
@@ -404,7 +404,7 @@ bld_setup_workdir() {
 	# cleanup finished workdirs
 	find "$WORKDIR_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | while read name; do
 		if bld_not_want_workdir "$name"; then
-			log "Removing obsolete session $name"
+			log "removing obsolete session $name"
 			bld_remove_workdir "$name"
 		fi
 	done
@@ -418,7 +418,7 @@ bld_setup_workdir() {
 		if bld_want_workdir "$ARG_CONTINUE" && bld_use_workdir "$ARG_CONTINUE"; then
 			return
 		else
-			die "Failed to enter session $ARG_CONTINUE"
+			die "failed to enter session $ARG_CONTINUE"
 		fi
 	elif bld_want_workdir last && bld_use_workdir last; then
 		return
@@ -429,11 +429,11 @@ bld_setup_workdir() {
 
 bld_setup() {
 	# just print the global settings
-	log "Working directory:  $BLD_WORKDIR"
-	log "Build directory:    $SCRATCH_ROOT"
+	log "working directory:  $BLD_WORKDIR"
+	log "build directory:    $SCRATCH_ROOT"
 	log "PKGBUILD directory: $PKGBUILD_ROOT"
-	log "Targets list file:  $TARGETS_FILE"
-	log "Target repo name:   $REPO_NAME"
+	log "targets list file:  $TARGETS_FILE"
+	log "target repo name:   $REPO_NAME"
 	log "pacman.conf:        $PACMAN_CONF"
 	log "makepkg.conf:       $MAKEPKG_CONF"
 
@@ -515,7 +515,7 @@ setup_one() {
 	keep) aurbuild_args+=( -c ) ;;
 	reuse) aurbuild_args+=( -c --cargs-no-default ) ;;
 	transient) aurbuild_args+=( -c -T ) ;;
-	*) die "Internal error: $(declare -p ARG_CHROOT)" ;;
+	*) die "internal error: $(declare -p ARG_CHROOT)" ;;
 	esac
 
 	# configure chroot
@@ -673,11 +673,11 @@ bld_phase_load_status() {
 	declare -a aliens
 	set_difference_a BLD_PHASE_OK targets aliens
 	if [[ ${aliens+set} ]]; then
-		die "Workdir inconsistent -- '${id}-ok' record contains unknown packages (n=${#aliens[@]}): ${aliens[*]}"
+		die "workdir inconsistent -- '${id}-ok' record contains unknown packages (n=${#aliens[@]}): ${aliens[*]}"
 	fi
 	set_difference_a BLD_PHASE_ERR targets aliens
 	if [[ ${aliens+set} ]]; then
-		die "Workdir inconsistent -- '${id}-err' record contains unknown packages (n=${#aliens[@]}): ${aliens[*]}"
+		die "workdir inconsistent -- '${id}-err' record contains unknown packages (n=${#aliens[@]}): ${aliens[*]}"
 	fi
 
 	set_difference_a targets BLD_PHASE_OK BLD_PHASE_TODO
@@ -948,20 +948,20 @@ BLD_OK=0
 # Execute a subroutine if requested
 if [[ $ARG_SUBROUTINE == fetch ]]; then
 	if (( ${#ARG_TARGETS[@]} != 1 )); then
-		die "Bad usage: $0 ${@@Q}"
+		die "bad usage: $0 ${@@Q}"
 	fi
 	ltrap "bld_sub_fetch__exit"
 	bld_sub_fetch "${ARG_TARGETS[@]}"
 	exit $(( BLD_OK ? 0 : 1 ))
 elif [[ $ARG_SUBROUTINE == build ]]; then
 	if (( ${#ARG_TARGETS[@]} != 1 )); then
-		die "Bad usage: $0 ${@@Q}"
+		die "bad usage: $0 ${@@Q}"
 	fi
 	ltrap "bld_sub_build__exit"
 	bld_sub_build "${ARG_TARGETS[@]}"
 	exit $(( BLD_OK ? 0 : 1 ))
 elif [[ ${ARG_SUBROUTINE+set} ]]; then
-	die "Bad usage: $0 ${@@Q}"
+	die "bad usage: $0 ${@@Q}"
 fi
 
 # Prepare workdir
@@ -979,7 +979,7 @@ if [[ $ARG_CHROOT != no ]]; then
 	CHROOT_PATH="$(bld_aur_chroot --path)"
 
 	# XXX host-specific overrides
-	log "Hacking up subuid and subgid at $CHROOT_PATH"
+	log "hacking up subuid and subgid at $CHROOT_PATH"
 	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subuid"
 builduser:100000:65536
 EOF
@@ -988,7 +988,7 @@ builduser:100000:65536
 EOF
 	
 	# XXX host-specific overrides
-	log "Hacking up /etc/containers/storage.conf at $CHROOT_PATH"
+	log "hacking up /etc/containers/storage.conf at $CHROOT_PATH"
 	sudo install -dm755 "$CHROOT_PATH/etc/containers"
 	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/containers/storage.conf"
 [storage]
@@ -996,7 +996,7 @@ EOF
 EOF
 	
 	# XXX host-specific overrides
-	log "Hacking up meson at $CHROOT_PATH"
+	log "hacking up meson at $CHROOT_PATH"
 	sudo install -Dm755 "$HOME/bin/wrappers/meson" "$CHROOT_PATH/usr/local/bin/meson"
 fi
 

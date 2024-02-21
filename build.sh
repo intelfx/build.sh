@@ -599,7 +599,7 @@ aur_list() {
 
 generate_srcinfo() {
 	if [[ .SRCINFO -ot PKGBUILD ]]; then
-		makepkg --printsrcinfo 2>/dev/null >.SRCINFO
+		aur build--pkglist --srcinfo >.SRCINFO
 	fi
 }
 

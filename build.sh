@@ -29,11 +29,13 @@ BLD_CONFIG_DEFAULT="$BLD_ROOTDIR/config.sh"
 . "$BLD_ROOTDIR/lib/lib.sh" || exit
 shopt -s nullglob
 
+
 #
 # config
 #
 
 source "${ARG_CONFIG-$BLD_CONFIG_DEFAULT}"
+
 
 #
 # constants
@@ -132,6 +134,7 @@ if ! [[ ${ARG_NO_CCACHE+set} ]]; then
 		ccache sccache
 	)
 fi
+
 
 #
 # functions

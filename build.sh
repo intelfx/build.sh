@@ -10,11 +10,10 @@ BLD_CONFIG_DEFAULT="$BLD_ROOT_DIR/config.sh"
 # arguments & usage
 #
 
-_usage_common_syntax="Usage: $BLD_ARGV0 [-c|--config CONFIG]"
+_usage_common_syntax="Usage: $BLD_ARGV0"
 _usage_common_options="
 Global options:
 	-h|--help		Print this usage help
-	-c|--config CONFIG 	Path to main configuration file or directory
 "
 
 _usage() {
@@ -49,6 +48,7 @@ EOF
 }
 
 declare -A ARGS=(
+	[-h|--help]=ARG_HELP
 	[--sub:]=ARG_SUBROUTINE
 	[--margs:]="ARGS_MAKEPKG split=, append pass=ARGS_PASS"
 	[--exclude:]="ARGS_EXCLUDE split=, append pass=ARGS_PASS"
@@ -66,6 +66,10 @@ declare -A ARGS=(
 )
 
 parse_args ARGS "$@" || usage ""
+
+if (( ARG_HELP )); then
+	usage
+fi
 
 
 #

@@ -26,8 +26,7 @@ fi
 BLD_ROOT_DIR="$(dirname "$BASH_SOURCE")"
 BLD_CONFIG_DEFAULT="$BLD_ROOT_DIR/config.sh"
 
-. "$BLD_ROOT_DIR/lib/lib.sh" || exit
-shopt -s nullglob
+. "$BLD_ROOT_DIR/libbuild/libbuild.sh" || exit
 
 
 #

@@ -598,7 +598,7 @@ aur_list() {
 }
 
 generate_srcinfo() {
-	if ! test -e .SRCINFO -a .SRCINFO -nt PKGBUILD; then
+	if [[ .SRCINFO -ot PKGBUILD ]]; then
 		makepkg --printsrcinfo 2>/dev/null >.SRCINFO
 	fi
 }

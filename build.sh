@@ -129,12 +129,6 @@ if [[ ${ARG_NO_CHROOT+set} && ${ARG_ISOLATE_CHROOT+set} ]]; then
 	usage "--no-chroot and --isolate-chroot are mutually exclusive"
 fi
 
-if ! [[ ${ARG_NO_CCACHE+set} ]]; then
-	CHROOT_PKGS+=(
-		ccache sccache
-	)
-fi
-
 
 #
 # functions

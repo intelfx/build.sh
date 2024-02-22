@@ -326,6 +326,14 @@ bld_workdir_get_file() {
 	cat "$BLD_WORKDIR/$1"
 }
 
+bld_workdir_get_file_name() {
+	if ! [[ -e "$BLD_WORKDIR/$1" ]]; then
+		err "bld_workdir_get_file: file does not exist: $BLD_WORKDIR/$1"
+		return 1
+	fi
+	echo "$BLD_WORKDIR/$1"
+}
+
 bld_workdir_put_file() {
 	TMPDIR="$BLD_WORKDIR" sponge "$BLD_WORKDIR/$1"
 }
@@ -479,10 +487,8 @@ bld_setup() {
 	log "makepkg.conf:       $MAKEPKG_CONF"
 
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
-		MAKEPKG_CONF_CCACHE="$(bld_workdir_file "makepkg+ccache.conf")"
-
-		cp -f "$MAKEPKG_CONF" -T "$MAKEPKG_CONF_CCACHE" -n
-		cat >>"$MAKEPKG_CONF_CCACHE" <<EOF
+		local f="makepkg+ccache.conf"
+		cat "$MAKEPKG_CONF" - <<EOF | bld_workdir_put_file "$f"
 
 #########################################################################
 # build.sh CCACHE CONFIGURATION
@@ -498,6 +504,8 @@ export SCCACHE_CONF="$SCCACHE_ROOT/sccache.conf"
 # and we want the final \$BUILDDIR, not the one that's set by this point.
 trap 'export CCACHE_BASEDIR="\$BUILDDIR"' RETURN
 EOF
+
+		MAKEPKG_CONF_CCACHE="$(bld_workdir_get_file_name "$f")"
 		ltrap "rm -f '$MAKEPKG_CONF_CCACHE'"
 		# pass $MAKEPKG_CONF_CCACHE to subprocesses, which will
 		# then be read in setup_one()

@@ -727,6 +727,7 @@ bld_aur_repo() {
 	aur repo \
 		-d "$REPO_NAME" \
 		--config "$PACMAN_CONF" \
+		--root "$PACMAN_DB_PATH" \
 		"$@"
 }
 
@@ -1129,6 +1130,18 @@ EOF
 	log "hacking up meson at $CHROOT_PATH"
 	sudo install -Dm755 "$HOME/bin/wrappers/meson" "$CHROOT_PATH/usr/local/bin/meson"
 fi
+
+# Find path to the sync database that we could query
+PACMAN_CONF_ARGS=( -c "$PACMAN_CONF" )
+if [[ $ARG_CHROOT != no ]]; then
+	PACMAN_CONF_ARGS+=( -R "$CHROOT_PATH" )
+fi
+pacman-conf "${PACMAN_CONF_ARGS[@]}" DBPath \
+| read PACMAN_DB_PATH
+PACMAN_DB_PATH="${PACMAN_DB_PATH%%/}/sync"
+log "pacman database:    $PACMAN_DB_PATH"
+bld_save_vars \
+	PACMAN_DB_PATH \
 
 # Load targets
 if bld_workdir_check_file "targets"; then

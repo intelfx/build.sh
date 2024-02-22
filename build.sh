@@ -1013,6 +1013,13 @@ bld_sub_fetch() {
 	# bump pkgrel= if --rebuild is indicated, or match to repo contents otherwise (to prevent building a package with a lower pkgrel than repo contents)
 
 	generate_srcinfo
+	local srcinfo_json
+	srcinfo_json="$(mktemp)"
+	ltrap 'rm -f "$srcinfo_json"'
+	parse_srcinfo --json <.SRCINFO >"$srcinfo_json"
+	jq_srcinfo() {
+		jq "$@" "$srcinfo_json"
+	}
 
 	# extract existing custom repo contents
 	local pkg_old pkg_old_ver pkg_old_rel
@@ -1022,15 +1029,12 @@ bld_sub_fetch() {
 		|| true
 	pkgver_extract "$pkg_old" pkg_old_ver pkg_old_rel
 
+	# extract current (declared) pkgver and pkgrel from .SRCINFO
 	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
-	# FIXME: proper .SRCINFO parser
-	# FIXME: split package handling
-	sed -nr 's|^\tepoch = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_epoch \
+	jq_srcinfo -r '.epoch // empty' | read pkg_cur_epoch \
 		|| true
-	sed -nr 's|^\tpkgver = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_ver \
-		|| die "no pkgver in .SRCINFO: $PWD/.SRCINFO"
-	sed -nr 's|^\tpkgrel = (.+)$|\1|p' .SRCINFO | head -n1 | read pkg_cur_rel \
-		|| die "no pkgrel in .SRCINFO: $PWD/.SRCINFO"
+	jq_srcinfo -r '.pkgver' | read pkg_cur_ver
+	jq_srcinfo -r '.pkgrel' | read pkg_cur_rel
 	pkg_cur_ver="${pkg_cur_epoch:+$pkg_cur_epoch:}$pkg_cur_ver"
 	pkg_cur="$pkg_cur_ver-$pkg_cur_rel"
 	dbg "$pkg:     repo: pkgver=$pkg_old_ver, pkgrel=$pkg_old_rel (input=$pkg_old)"

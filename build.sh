@@ -1137,12 +1137,16 @@ PACMAN_CONF_ARGS=( -c "$PACMAN_CONF" )
 if [[ $ARG_CHROOT != no ]]; then
 	PACMAN_CONF_ARGS+=( -R "$CHROOT_PATH" )
 fi
+pacman-conf "${PACMAN_CONF_ARGS[@]}" --repo-list \
+| readarray -t PACMAN_DB_REPOS
 pacman-conf "${PACMAN_CONF_ARGS[@]}" DBPath \
 | read PACMAN_DB_PATH
 PACMAN_DB_PATH="${PACMAN_DB_PATH%%/}/sync"
 log "pacman database:    $PACMAN_DB_PATH"
+log "pacman repos:       $(join ", " "${PACMAN_DB_REPOS[@]}")"
 bld_save_vars \
 	PACMAN_DB_PATH \
+	PACMAN_DB_REPOS \
 
 # Load targets
 if bld_workdir_check_file "targets"; then

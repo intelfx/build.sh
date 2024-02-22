@@ -34,6 +34,8 @@ Package selection options:
 Behavior modifiers:
 	--rebuild
 	--no-pull
+	--no-fetch
+	--no-build
 
 Build environment options:
 	--no-ccache
@@ -58,6 +60,8 @@ declare -A ARGS=(
 	[--exclude:]="ARGS_EXCLUDE split=, append pass=ARGS_PASS"
 	[--rebuild]="ARG_REBUILD pass=ARGS_PASS"
 	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
+	[--no-fetch]="ARG_NOFETCH pass=ARGS_PASS"
+	[--no-build]='ARG_NOBUILD pass=ARGS_PASS'
 	[--no-chroot]="ARG_NO_CHROOT pass=ARGS_PASS"
 	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
 	[--reuse-chroot]="ARG_REUSE_CHROOT pass=ARGS_PASS"
@@ -583,6 +587,8 @@ EOF
 		ARGS_EXCLUDE \
 		ARG_REBUILD \
 		ARG_NOPULL \
+		ARG_NOFETCH \
+		ARG_NOBUILD \
 		ARG_NO_CHROOT \
 		ARG_KEEP_CHROOT \
 		ARG_REUSE_CHROOT \
@@ -1183,6 +1189,10 @@ else
 	print_array "${BLD_TARGETS[@]}" | bld_workdir_put_file "targets"
 fi
 
+if [[ ${ARG_NOFETCH+set} ]]; then
+	die "--no-fetch set, aborting as instructed"
+fi
+
 # Fetch targets
 # TODO: dependency resolution
 declare -A FETCH_MSGS=(
@@ -1206,6 +1216,10 @@ _phase_fetch() {
 	parallel "${parallel_args[@]}" "$0 ${ARGS_PASS[@]@Q} --sub=fetch {}" ::: "$@" || rc=$?
 }
 bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch
+
+if [[ ${ARG_NOBUILD+set} ]]; then
+	die "--no-build set, aborting as instructed"
+fi
 
 # Build targets
 # TODO: determine which targets need to be built

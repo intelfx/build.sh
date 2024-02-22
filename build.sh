@@ -50,6 +50,7 @@ EOF
 
 declare -A ARGS=(
 	[-h|--help]=ARG_HELP
+	[--verbose]="ARG_VERBOSE pass=ARGS_PASS"
 	[--config:]="ARG_CONFIG pass=ARGS_PASS"
 	[--sub:]=ARG_SUBROUTINE
 	[--margs:]="ARGS_MAKEPKG split=, append pass=ARGS_PASS"
@@ -71,6 +72,10 @@ parse_args ARGS "$@" || usage ""
 
 if (( ARG_HELP )); then
 	usage
+fi
+
+if (( ARG_VERBOSE )); then
+	LIBSH_DEBUG=1
 fi
 
 

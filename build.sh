@@ -586,6 +586,7 @@ EOF
 	# Save computed variables
 	bld_mark_vars \
 		MAKEPKG_CONF \
+		CHROOT_PKGS \
 		CHROOT_PATH \
 
 	bld_commit_vars
@@ -1098,9 +1099,14 @@ bld_workdir_update_timestamp
 bld_setup
 
 # Update chroot
+# TODO move it somewhere before the variables are exported in bld_setup()
+#      so that we can write out everything at once
 if [[ $ARG_CHROOT != no ]]; then
 	bld_aur_chroot --create --update -- -uu
+
 	CHROOT_PATH="$(bld_aur_chroot --path)"
+	log "chroot path:        $CHROOT_PATH"
+	bld_save_vars CHROOT_PATH  # TODO get rid of this, see above
 
 	# XXX host-specific overrides
 	log "hacking up subuid and subgid at $CHROOT_PATH"

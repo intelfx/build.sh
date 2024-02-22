@@ -738,6 +738,13 @@ generate_srcinfo() {
 	fi
 }
 
+pkgver_extract() {
+	local arg="$1"
+	declare -n pkgver="$2" pkgrel="$3"
+	pkgver="${arg%-*}"
+	pkgrel="${arg##*-}"
+}
+
 bld_aur_repo() {
 	aur repo \
 		-d "$REPO_NAME" \
@@ -1007,11 +1014,13 @@ bld_sub_fetch() {
 
 	generate_srcinfo
 
+	# extract existing custom repo contents
 	local pkg_old pkg_old_ver pkg_old_rel
-	bld_aur_repo --table | awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $3 == pkgbase { print $4; exit }' | read pkg_old \
+	bld_aur_repo --format '%R\t%b\t%v\n' \
+	| awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $2 == pkgbase { print $3; exit }' \
+	| read pkg_old \
 		|| true
-	pkg_old_rel="${pkg_old##*-}"
-	pkg_old_ver="${pkg_old%-*}"
+	pkgver_extract "$pkg_old" pkg_old_ver pkg_old_rel
 
 	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
 	# FIXME: proper .SRCINFO parser

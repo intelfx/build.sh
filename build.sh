@@ -51,6 +51,7 @@ EOF
 declare -A ARGS=(
 	[-h|--help]=ARG_HELP
 	[--verbose]="ARG_VERBOSE pass=ARGS_PASS"
+	[--debug]="ARG_DEBUG pass=ARGS_PASS"
 	[--config:]="ARG_CONFIG pass=ARGS_PASS"
 	[--sub:]=ARG_SUBROUTINE
 	[--margs:]="ARGS_MAKEPKG split=, append pass=ARGS_PASS"
@@ -74,7 +75,10 @@ if (( ARG_HELP )); then
 	usage
 fi
 
-if (( ARG_VERBOSE )); then
+if (( ARG_DEBUG )); then
+	set -x
+	LIBSH_DEBUG=1
+elif (( ARG_VERBOSE )); then
 	LIBSH_DEBUG=1
 fi
 

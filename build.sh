@@ -916,8 +916,9 @@ bld_sub_fetch() {
 					-e ' /^\+(pkgver|pkgrel)=/d' \
 					-e 's/^\-(pkgver|pkgrel)=/ \1=/' \
 				>"$pkgbuild_diff"
-			git checkout -f "$pkgbuild"
-			git apply --recount --allow-empty "$pkgbuild_diff"
+			git reset --quiet "$pkgbuild"
+			git checkout --quiet "$pkgbuild"
+			git apply --quiet --recount --allow-empty "$pkgbuild_diff"
 			luntrap
 			lruntrap
 		fi
@@ -926,8 +927,8 @@ bld_sub_fetch() {
 		if ! git ls-files --error-unmatch "$srcinfo" &>/dev/null; then
 			rm -f "$srcinfo"
 		elif ! git diff --quiet HEAD -- "$srcinfo"; then
-			git reset "$srcinfo"
-			git checkout -f "$srcinfo"
+			git reset --quiet "$srcinfo"
+			git checkout --quiet "$srcinfo"
 		fi
 
 		case "$pkg" in

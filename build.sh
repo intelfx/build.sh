@@ -743,13 +743,14 @@ bld_aur_chroot() {
 bld_aur_build_dry() {
 	# skip $aurbuild_args and $makepkg_args_build
 	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
-	aur build \
+	{ aur build \
 		-d "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
 		--makepkg-conf "$MAKEPKG_CONF" \
 		--dry-run \
 		"$@" \
-	|| true
+	|| true; } \
+	| sponge
 }
 
 bld_aur_build() {
@@ -866,7 +867,7 @@ bld_sub_build() {
 	setup_one "$@"
 	cd "$pkgbuild_dir"
 
-	if ! bld_aur_build_dry | sponge | grep -qE '^build:'; then
+	if ! bld_aur_build_dry | grep -qE '^build:'; then
 		BLD_OK=1
 		return
 	fi

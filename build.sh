@@ -1084,8 +1084,9 @@ bld_sub_fetch() {
 		pkg_repos["$k"]="$v"
 	done
 
-	local pkg_new_rel
+	local pkg_new_rel tag
 	local -a pkg_new_rels=( "$pkg_cur_rel" )
+	declare -A pkg_new_rel_reasons=()
 
 	# log existing pkgver
 	dbgf "$pkg: %20s: pkgver=%s, pkgrel=%s" \
@@ -1112,6 +1113,13 @@ bld_sub_fetch() {
 			dbgf "$pkg: %20s -> same pkgver, bumping pkgrel=%s" \
 				"$repo" "$pkg_new_rel"
 			pkg_new_rels+=( "$pkg_new_rel" )
+
+			# record the reason for this bump
+			case "$repo" in
+			$REPO_NAME/*) tag=our ;;
+			*) tag=other ;;
+			esac
+			pkg_new_rel_reasons[$pkg_new_rel/$tag]+="$repo "
 		else
 			dbgf "$pkg: %20s -> changed pkgver, leaving pkgrel" \
 				"$repo"
@@ -1121,8 +1129,17 @@ bld_sub_fetch() {
 	# compute final pkgrel and write to PKGBUILD
 	pkg_new_rel="$(max "${pkg_new_rels[@]}")"
 	if (( pkg_new_rel > pkg_cur_rel )); then
-		logf "$pkg: %20s: pkgver=%s, updating pkgrel=%s->%s" \
-			"PKGBUILD" "$pkg_cur_ver" "$pkg_cur_rel" "$pkg_new_rel"
+		# compute pkgrel bump reason, preferring our repo constraints over others
+		local reason="(unknown)"
+		for tag in our other; do
+			if [[ ${pkg_new_rel_reasons[$pkg_new_rel/$tag]+set} ]]; then
+				reason="$(join ", " ${pkg_new_rel_reasons[$pkg_new_rel/$tag]})"
+				break
+			fi
+		done
+
+		logf "$pkg: %20s: pkgver=%s, updating pkgrel=%s->%s (reasons: %s)" \
+			"PKGBUILD" "$pkg_cur_ver" "$pkg_cur_rel" "$pkg_new_rel" "$reason"
 		sed -r "s|^pkgrel=.+$|pkgrel=$pkg_new_rel|" -i PKGBUILD
 
 		# print the updated pkgver over the one printed by aur-srcver

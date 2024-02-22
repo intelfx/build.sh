@@ -1063,23 +1063,6 @@ bld_sub_fetch() {
 	# and then optionally bump (increment) pkgrel if a rebuild is indicated
 	# (for now, there is only a manual trigger).
 
-	# extract existing custom repo contents
-	local pkg_old pkg_old_ver pkg_old_rel
-	bld_aur_repo --format '%R\t%b\t%v\n' \
-	| awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $2 == pkgbase { print $3; exit }' \
-	| read pkg_old \
-		|| true
-	pkgver_extract "$pkg_old" pkg_old_ver pkg_old_rel
-
-	# extract official repo contents, if any
-	declare -A pkg_repos
-	local k v repo pkg_repo_ver pkg_repo_rel
-	bld_aur_repo_forall_others --format '%R\t%b\t%v\n' \
-	| awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $2 == pkgbase { print $1 " " $3 }' \
-	| while read k v; do
-		pkg_repos["$k"]="$v"
-	done
-
 	# extract current (declared) pkgver and pkgrel from .SRCINFO
 	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
 	local -a pkg_names
@@ -1091,56 +1074,55 @@ bld_sub_fetch() {
 	pkg_cur_ver="${pkg_cur_epoch:+$pkg_cur_epoch:}$pkg_cur_ver"
 	pkg_cur="$pkg_cur_ver-$pkg_cur_rel"
 
-	# log all of this
+	# extract existing custom and official repo contents, if any
+	declare -A pkg_repos
+	local k v repo pkg_repo_ver pkg_repo_rel
+	bld_aur_repo_forall --format '%R\t%n\t%v\n' \
+	| awk -i <(awk_make_set pkgnames "${pkg_names[@]}") \
+		'BEGIN { FS="\t" } $2 in pkgnames { print $1 "/" $2 " " $3 }' \
+	| while read k v; do
+		pkg_repos["$k"]="$v"
+	done
+
+	local pkg_new_rel
+	local -a pkg_new_rels=( "$pkg_cur_rel" )
+
+	# log existing pkgver
 	dbgf "$pkg: %20s: pkgver=%s, pkgrel=%s" \
-		"$REPO_NAME" "$pkg_old_ver" "$pkg_old_rel"
+		"PKGBUILD" "$pkg_cur_ver" "$pkg_cur_rel"
+
+	# if we are rebuilding, bump pkgrel relative to old package
+	# otherwise, at least set pkgrel equal to old package
+	# additionally, always bump pkgrel relative to existing official packages
 	for repo in "${!pkg_repos[@]}"; do
 		pkgver_extract "${pkg_repos[$repo]}" pkg_repo_ver pkg_repo_rel
 		dbgf "$pkg: %20s: pkgver=%s, pkgrel=%s" \
 			"$repo" "$pkg_repo_ver" "$pkg_repo_rel"
-	done
-	dbgf "$pkg: %20s: pkgver=%s, pkgrel=%s" \
-		"PKGBUILD" "$pkg_cur_ver" "$pkg_cur_rel"
 
-	local pkg_new_rel="$pkg_old_rel"
-	local -a pkg_new_rels=( "$pkg_cur_rel" )
-
-	# if we are rebuilding, bump pkgrel relative to old package
-	# otherwise, at least set pkgrel equal to old package
-	if [[ "$pkg_old_ver" == "$pkg_cur_ver" ]]; then
-		if (( ARG_REBUILD )); then
-			dbgf "$pkg: %20s same pkgver=%s, bumping pkgrel=%s" \
-				"$REPO_NAME ->" "$pkg_old_ver" "$(( pkg_old_rel + 1 ))"
-			pkg_new_rels+=( "$(( pkg_old_rel + 1 ))" )
-		else
-			dbgf "$pkg:  %20s same pkgver=%s, bumping pkgrel=%s" \
-				"$REPO_NAME ->" "$pkg_old_ver" "$pkg_old_rel"
-			pkg_new_rels+=( "$pkg_old_rel" )
-		fi
-	else
-		pkg_new_rels+=( "$pkg_cur_rel" )
-		dbgf "$pkg:  %20s changed pkgver, leaving pkgrel" \
-			"$REPO_NAME ->"
-	fi
-
-	# additionally, always bump pkgrel relative to existing official packages
-	for repo in "${!pkg_repos[@]}"; do
-		pkgver_extract "${pkg_repos[$repo]}" pkg_repo_ver pkg_repo_rel
 		if [[ "$pkg_repo_ver" == "$pkg_cur_ver" ]]; then
-			dbgf "$pkg:  %20s same pkgver=%s, bumping pkgrel=%s" \
-				"$repo ->" "$pkg_repo_ver" "$(( pkg_repo_rel + 1 ))"
-			pkg_new_rels+=( "$(( pkg_repo_rel + 1 ))" )
+			# What is happening here:
+			# - if this is an existing package from other repo, always bump pkgrel
+			# - if this is our package (from our repo), bump pkgrel if forcing rebuild
+			if [[ $repo != $REPO_NAME/* ]] || (( ARG_REBUILD )); then
+				pkg_new_rel="$(( pkg_repo_rel + 1 ))"
+			else
+				pkg_new_rel="$pkg_repo_rel"
+			fi
+
+			dbgf "$pkg: %20s -> same pkgver, bumping pkgrel=%s" \
+				"$repo" "$pkg_new_rel"
+			pkg_new_rels+=( "$pkg_new_rel" )
 		else
-			dbgf "$pkg:  %20s same pkgver=%s, changed pkgver, leaving pkgrel" \
-				"$repo ->"
+			dbgf "$pkg: %20s -> changed pkgver, leaving pkgrel" \
+				"$repo"
 		fi
 	done
 
 	# compute final pkgrel and write to PKGBUILD
 	pkg_new_rel="$(max "${pkg_new_rels[@]}")"
 	if (( pkg_new_rel > pkg_cur_rel )); then
-		logf "$pkg: %20s: pkgver=%s, setting pkgrel=%s" \
-			"PKGBUILD" "$pkg_cur_ver" "$pkg_new_rel"
+		logf "$pkg: %20s: pkgver=%s, updating pkgrel=%s->%s" \
+			"PKGBUILD" "$pkg_cur_ver" "$pkg_cur_rel" "$pkg_new_rel"
 		sed -r "s|^pkgrel=.+$|pkgrel=$pkg_new_rel|" -i PKGBUILD
 
 		# print the updated pkgver over the one printed by aur-srcver

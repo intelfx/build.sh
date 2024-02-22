@@ -1070,6 +1070,8 @@ bld_sub_fetch() {
 
 	# extract current (declared) pkgver and pkgrel from .SRCINFO
 	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
+	local -a pkg_names
+	jq_srcinfo -r '.packages | keys[]' | readarray -t pkg_names
 	jq_srcinfo -r '.epoch // empty' | read pkg_cur_epoch \
 		|| true
 	jq_srcinfo -r '.pkgver' | read pkg_cur_ver

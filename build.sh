@@ -745,6 +745,18 @@ pkgver_extract() {
 	pkgrel="${arg##*-}"
 }
 
+pkgver_max() {
+	if ! (( $# )); then return; fi
+	local max="$1" arg cmp
+	shift
+	for arg; do
+		cmp="$(vercmp "$arg" "$max")"
+		if (( cmp > 0 )); then max="$arg"; fi
+	done
+
+	echo "$max"
+}
+
 bld_aur_repo() {
 	aur repo \
 		-d "$REPO_NAME" \

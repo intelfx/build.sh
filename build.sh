@@ -754,6 +754,30 @@ bld_aur_repo() {
 	| sponge
 }
 
+bld_aur_repo_forall() {
+	local repo
+	for repo in "${PACMAN_DB_REPOS[@]}"; do
+		aur repo \
+			-d "$repo" \
+			--config "$PACMAN_CONF" \
+			--root "$PACMAN_DB_PATH" \
+			"$@"
+	done | sponge
+}
+
+bld_aur_repo_forall_others() {
+	local others
+	array_filter_out PACMAN_DB_REPOS others "$REPO_NAME"
+
+	for repo in "${others[@]}"; do
+		aur repo \
+			-d "$repo" \
+			--config "$PACMAN_CONF" \
+			--root "$PACMAN_DB_PATH" \
+			"$@"
+	done | sponge
+}
+
 bld_aur_chroot() {
 	aur chroot \
 		--suffix "$REPO_NAME" \
@@ -1035,6 +1059,15 @@ bld_sub_fetch() {
 		|| true
 	pkgver_extract "$pkg_old" pkg_old_ver pkg_old_rel
 
+	# extract official repo contents, if any
+	declare -A pkg_repos
+	local k v repo pkg_repo_ver pkg_repo_rel
+	bld_aur_repo_forall_others --format '%R\t%b\t%v\n' \
+	| awk -v pkgbase=$pkg 'BEGIN { FS="\t" } $2 == pkgbase { print $1 " " $3 }' \
+	| while read k v; do
+		pkg_repos["$k"]="$v"
+	done
+
 	# extract current (declared) pkgver and pkgrel from .SRCINFO
 	local pkg_cur pkg_cur_epoch pkg_cur_ver pkg_cur_rel
 	jq_srcinfo -r '.epoch // empty' | read pkg_cur_epoch \
@@ -1075,6 +1108,19 @@ bld_sub_fetch() {
 		dbgf "$pkg:  %20s changed pkgver, leaving pkgrel" \
 			"$REPO_NAME ->"
 	fi
+
+	# additionally, always bump pkgrel relative to existing official packages
+	for repo in "${!pkg_repos[@]}"; do
+		pkgver_extract "${pkg_repos[$repo]}" pkg_repo_ver pkg_repo_rel
+		if [[ "$pkg_repo_ver" == "$pkg_cur_ver" ]]; then
+			dbgf "$pkg:  %20s same pkgver=%s, bumping pkgrel=%s" \
+				"$repo ->" "$pkg_repo_ver" "$(( pkg_repo_rel + 1 ))"
+			pkg_new_rels+=( "$(( pkg_repo_rel + 1 ))" )
+		else
+			dbgf "$pkg:  %20s same pkgver=%s, changed pkgver, leaving pkgrel" \
+				"$repo ->"
+		fi
+	done
 
 	# compute final pkgrel and write to PKGBUILD
 	pkg_new_rel="$(max "${pkg_new_rels[@]}")"

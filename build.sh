@@ -1106,7 +1106,15 @@ bld_setup
 # TODO move it somewhere before the variables are exported in bld_setup()
 #      so that we can write out everything at once
 if [[ $ARG_CHROOT != no ]]; then
-	bld_aur_chroot --create --update -- -uu
+	# This used to say `bld_aur_chroot --create --update -- -uu`,
+	# but `aur chroot --create` interprets positional arguments as
+	# packages to install instead of default groups, so this fails
+	# if the chroot actually needs to be created.
+	if ! bld_aur_chroot --path &>/dev/null; then
+		bld_aur_chroot --create
+	else
+		bld_aur_chroot --update -- -uu
+	fi
 
 	CHROOT_PATH="$(bld_aur_chroot --path)"
 	log "chroot path:        $CHROOT_PATH"

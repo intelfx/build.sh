@@ -338,6 +338,10 @@ bld_workdir_put_file() {
 	TMPDIR="$BLD_WORKDIR" sponge "$BLD_WORKDIR/$1"
 }
 
+bld_workdir_delete_file() {
+	rm -f "$BLD_WORKDIR/$1"
+}
+
 bld_workdir_put_mark() {
 	touch "$BLD_WORKDIR/$1"
 }
@@ -476,15 +480,59 @@ bld_setup_workdir() {
 	fi
 }
 
+bld_check_vars() {
+	bld_workdir_check_file "vars"
+}
+
+bld_check_vars_loaded() {
+	[[ ${BLD_LOADED_VARS+set} ]]
+}
+
+bld_reset_vars() {
+	bld_workdir_delete_file "vars"
+	declare -g -A BLD_SAVED_VARS=()
+	unset BLD_LOADED_VARS
+}
+
+bld_mark_vars() {
+	local arg
+	for arg; do
+		BLD_SAVED_VARS["$arg"]=1
+	done
+}
+
+bld_commit_vars() {
+	# marker variable for bld_check_vars_loaded()
+	# NOTE: this way, it will also evaluate true after _saving_ vars
+	#       as opposed to _loading_ them, but arguably this is right
+	#       because save + load is idempotent
+	BLD_LOADED_VARS=1
+	BLD_SAVED_VARS[BLD_LOADED_VARS]=1
+
+	# ignore non-existent variables
+	{ declare -p \
+		BLD_SAVED_VARS \
+		"${!BLD_SAVED_VARS[@]}" \
+		2>/dev/null || true; } \
+	| sed -r 's|^declare\>|& -g|' \
+	| bld_workdir_put_file "vars"
+}
+
+bld_save_vars() {
+	bld_mark_vars "$@"
+	bld_commit_vars
+}
+
+bld_load_vars() {
+	local vars
+	vars="$(bld_workdir_get_file_name "vars")"
+	source "$vars"
+}
+
 bld_setup() {
-	# just print the global settings
-	log "working directory:  $BLD_WORKDIR"
-	log "build directory:    $SCRATCH_ROOT"
-	log "PKGBUILD directory: $PKGBUILD_ROOT"
-	log "targets list file:  $TARGETS_FILE"
-	log "target repo name:   $REPO_NAME"
-	log "pacman.conf:        $PACMAN_CONF"
-	log "makepkg.conf:       $MAKEPKG_CONF"
+	if bld_check_vars_loaded; then
+		die "bld_setup() called twice!"
+	fi
 
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
 		local f="makepkg+ccache.conf"
@@ -505,15 +553,42 @@ export SCCACHE_CONF="$SCCACHE_ROOT/sccache.conf"
 trap 'export CCACHE_BASEDIR="\$BUILDDIR"' RETURN
 EOF
 
-		MAKEPKG_CONF_CCACHE="$(bld_workdir_get_file_name "$f")"
-		ltrap "rm -f '$MAKEPKG_CONF_CCACHE'"
-		# pass $MAKEPKG_CONF_CCACHE to subprocesses, which will
-		# then be read in setup_one()
-		# FIXME this is dirty
-		export MAKEPKG_CONF_CCACHE
-
-		log "makepkg.conf (ccache): $MAKEPKG_CONF_CCACHE"
+		MAKEPKG_CONF="$(bld_workdir_get_file_name "$f")"
+		log "makepkg.conf (ccache): $MAKEPKG_CONF"
 	fi
+
+	log "working directory:  $BLD_WORKDIR"
+	log "build directory:    $SCRATCH_ROOT"
+	log "PKGBUILD directory: $PKGBUILD_ROOT"
+	log "targets list file:  $TARGETS_FILE"
+	log "target repo name:   $REPO_NAME"
+	log "pacman.conf:        $PACMAN_CONF"
+	log "makepkg.conf:       $MAKEPKG_CONF"
+	log "chroot:             ${ARG_CHROOT}${ARG_ISOLATE_CHROOT+,isolated}"
+
+	bld_reset_vars
+
+	# Save arguments
+	bld_mark_vars \
+		ARGS_MAKEPKG \
+		ARGS_EXCLUDE \
+		ARG_REBUILD \
+		ARG_NOPULL \
+		ARG_NO_CHROOT \
+		ARG_KEEP_CHROOT \
+		ARG_REUSE_CHROOT \
+		ARG_ISOLATE_CHROOT \
+		ARG_UNCLEAN \
+		ARG_NO_CCACHE \
+		ARG_RESET \
+		ARG_CONTINUE \
+
+	# Save computed variables
+	bld_mark_vars \
+		MAKEPKG_CONF \
+		CHROOT_PATH \
+
+	bld_commit_vars
 }
 
 bld_target_get_dir() {
@@ -587,6 +662,10 @@ setup_one() {
 				--bind-rw "$CCACHE_ROOT"
 				--bind-rw "$SCCACHE_ROOT"
 			)
+			aurbuild_args+=(
+				-I ccache
+				-I sccache
+			)
 		fi
 
 		# XXX ridiculously ugly host-dependent hack for launching
@@ -630,15 +709,6 @@ setup_one() {
 	makechrootpkg_args+=( "${EXTRA_MAKECHROOTPKG_ARGS[@]}" )
 	makepkg_args_prepare+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
-
-	# FIXME this is dirty
-	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
-		MAKEPKG_CONF="$MAKEPKG_CONF_CCACHE"
-		aurbuild_args+=(
-			-I ccache
-			-I sccache
-		)
-	fi
 }
 
 aur_list() {
@@ -993,6 +1063,11 @@ fi
 
 eval "$(globaltraps)"
 BLD_OK=0
+
+# Load variables if we are in a subprocess
+if bld_has_workdir; then
+	bld_load_vars
+fi
 
 # Execute a subroutine if requested
 if [[ $ARG_SUBROUTINE == fetch ]]; then

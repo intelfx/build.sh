@@ -1110,7 +1110,7 @@ if [[ $ARG_CHROOT != no ]]; then
 	bld_save_vars CHROOT_PATH  # TODO get rid of this, see above
 
 	# XXX host-specific overrides
-	log "hacking up subuid and subgid at $CHROOT_PATH"
+	log "chroot: hacking up subuid and subgid"
 	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subuid"
 builduser:100000:65536
 EOF
@@ -1119,7 +1119,7 @@ builduser:100000:65536
 EOF
 	
 	# XXX host-specific overrides
-	log "hacking up /etc/containers/storage.conf at $CHROOT_PATH"
+	log "chroot: hacking up /etc/containers/storage.conf"
 	sudo install -dm755 "$CHROOT_PATH/etc/containers"
 	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/containers/storage.conf"
 [storage]
@@ -1127,7 +1127,7 @@ EOF
 EOF
 	
 	# XXX host-specific overrides
-	log "hacking up meson at $CHROOT_PATH"
+	log "chroot: hacking up meson"
 	sudo install -Dm755 "$HOME/bin/wrappers/meson" "$CHROOT_PATH/usr/local/bin/meson"
 fi
 

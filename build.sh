@@ -321,6 +321,7 @@ bld_workdir_check_file() {
 bld_workdir_get_file() {
 	if ! [[ -e "$BLD_WORKDIR/$1" ]]; then
 		err "bld_workdir_get_file: file does not exist: $BLD_WORKDIR/$1"
+		return 1
 	fi
 	cat "$BLD_WORKDIR/$1"
 }

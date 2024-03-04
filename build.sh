@@ -68,6 +68,7 @@ declare -A ARGS=(
 	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
 	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
 	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
+	[--test]="ARG_TEST pass=ARGS_PASS"
 	[--reset]=ARG_RESET
 	[--continue::]="ARG_CONTINUE default="
 	[--]=ARG_TARGETS
@@ -587,6 +588,7 @@ EOF
 	log "pacman.conf:        $PACMAN_CONF"
 	log "makepkg.conf:       $MAKEPKG_CONF"
 	log "chroot:             ${ARG_CHROOT}${ARG_ISOLATE_CHROOT+,isolated}"
+	log "test build:         $(bld_ternary "${ARG_TEST+set}" yes no)"
 
 	bld_reset_vars
 
@@ -606,6 +608,7 @@ EOF
 		ARG_NO_CCACHE \
 		ARG_RESET \
 		ARG_CONTINUE \
+		ARG_TEST \
 
 	# Save computed variables
 	bld_mark_vars \
@@ -934,6 +937,12 @@ bld_sub_build() {
 	setup_one "$@"
 	cd "$pkgbuild_dir"
 
+	if [[ ${BLD_TEST+set} ]]; then
+		AUR_REPO_ADD=/bin/true bld_aur_build --force --no-sync
+		BLD_OK=1
+		return
+	fi
+
 	if ! bld_aur_build_dry | grep -qE '^build:'; then
 		BLD_OK=1
 		return
@@ -1049,6 +1058,12 @@ bld_sub_fetch() {
 				return 1
 			fi
 		fi
+	fi
+
+	# if we are test-building, skip autobump
+	if [[ ${ARG_TEST+set} ]]; then
+		BLD_OK=1
+		return
 	fi
 
 	cd "$pkgbuild_dir"

@@ -466,14 +466,23 @@ bld_want_workdir() {
 	return 0
 }
 
-bld_setup_workdir() {
-	# cleanup finished workdirs
+bld_collect_workdirs() {
+	if ! [[ -e "$WORKDIR_ROOT" ]]; then
+		return 0
+	fi
+
+	local name
 	find "$WORKDIR_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | while read name; do
 		if bld_not_want_workdir "$name"; then
 			log "removing obsolete session $name"
 			bld_remove_workdir "$name"
 		fi
 	done
+}
+
+bld_setup_workdir() {
+	# cleanup finished workdirs
+	bld_collect_workdirs
 
 	# NOTE: $ARG_CONTINUE is used both as a session name (when nonempty)
 	#       and as a behavior modifier inside bld_want_workdir() (when set).

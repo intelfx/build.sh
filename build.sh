@@ -564,8 +564,7 @@ bld_setup() {
 #########################################################################
 # build.sh CCACHE CONFIGURATION
 #########################################################################
-BUILDENV+=( ccache )
-export RUSTC_WRAPPER="/usr/bin/sccache"
+BUILDENV+=( ccache sccache )
 export CCACHE_DIR="$CCACHE_ROOT"
 export CCACHE_CONFIGPATH="$CCACHE_ROOT/ccache.conf"
 export SCCACHE_DIR="$SCCACHE_ROOT"

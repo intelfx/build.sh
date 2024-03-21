@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -eo pipefail
+shopt -s lastpipe
+
 BLD_ROOT_DIR="$(dirname "$BASH_SOURCE")"
 BLD_CONFIG_DEFAULT="$BLD_ROOT_DIR/config.sh"
 
@@ -102,19 +105,19 @@ source "${ARG_CONFIG-$BLD_CONFIG_DEFAULT}"
 # constants
 #
 
-: ${PKGBUILD_ROOT="$HOME/pkgbuild"}
-: ${TARGETS_FILE="$PKGBUILD_ROOT/packages.txt"}
+: "${PKGBUILD_ROOT="$HOME/pkgbuild"}"
+: "${TARGETS_FILE="$PKGBUILD_ROOT/packages.txt"}"
 
-: ${WORKDIR_ROOT="$HOME/.pkgbuild.work"}
-: ${WORKDIR_MAX_AGE_SEC=3600}
-: ${WORKDIR_HARD_MAX_AGE_SEC=86400}
-: ${REPO_NAME=custom}
-: ${MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}
-: ${PACMAN_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}
-: ${SCRATCH_ROOT="/var/tmp/makepkg"}
-: ${CCACHE_ROOT="/var/tmp/makepkg-ccache"}
-: ${SCCACHE_ROOT="/var/tmp/makepkg-sccache"}
-: ${CONTAINERS_ROOT="/var/tmp/makepkg-containers"}
+: "${WORKDIR_ROOT="$HOME/.pkgbuild.work"}"
+: "${WORKDIR_MAX_AGE_SEC=3600}"
+: "${WORKDIR_HARD_MAX_AGE_SEC=86400}"
+: "${REPO_NAME=custom}"
+: "${MAKEPKG_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}"
+: "${PACMAN_CONF="/etc/aurutils/makepkg-$REPO_NAME.conf"}"
+: "${SCRATCH_ROOT="/var/tmp/makepkg"}"
+: "${CCACHE_ROOT="/var/tmp/makepkg-ccache"}"
+: "${SCCACHE_ROOT="/var/tmp/makepkg-sccache"}"
+: "${CONTAINERS_ROOT="/var/tmp/makepkg-containers"}"
 unset CHROOT_PATH  # NOTE: queried and set below
 
 [[ ${EXTRA_BIND_DIRS+set} ]] || \
@@ -184,7 +187,7 @@ bld_make_workdir() {
 
 	local workdir workname worklabel
 	workdir="$(mktemp -d -p "$WORKDIR_ROOT" "$(date -Iminutes).XXX")"
-	workname="${workdir#$WORKDIR_ROOT/}"
+	workname="${workdir#"$WORKDIR_ROOT/"}"
 	worklabel="$workname"
 
 	if ! bld_lock_workdir "$workname"; then
@@ -276,7 +279,7 @@ bld_unlock() {
 bld_workdir_label() {
 	local workdir
 	workdir="$(realpath --relative-to="$WORKDIR_ROOT" --relative-base="$WORKDIR_ROOT" "$WORKDIR_ROOT/$1")"
-	if [[ $workdir == $1 ]]; then
+	if [[ $workdir == "$1" ]]; then
 		echo "$1"
 	else
 		echo "$1 ($workdir)"
@@ -284,7 +287,7 @@ bld_workdir_label() {
 }
 
 bld_remove_workdir() {
-	rm -rf "$WORKDIR_ROOT/$1"
+	rm -rf "${WORKDIR_ROOT:?}/$1"
 }
 
 bld_check_workdir() {
@@ -324,7 +327,7 @@ bld_workdir_put_dir() {
 }
 
 bld_workdir_clean_dir() {
-	rm -rf "$BLD_WORKDIR/$1"
+	rm -rf "${BLD_WORKDIR:?}/$1"
 	mkdir -p "$BLD_WORKDIR/$1"
 }
 
@@ -439,9 +442,9 @@ bld_want_workdir() {
 			fi
 			return 1
 		fi
-		local a="$(bld_check_workdir_get_file "$1" "targets_file")"
-		local b="$(cat_config "$TARGETS_FILE")"
-		if ! [[ $a == $b ]]; then
+		a="$(bld_check_workdir_get_file "$1" "targets_file")"
+		b="$(cat_config "$TARGETS_FILE")"
+		if ! [[ $a == "$b" ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
 				warn "workdir $label has different targets (continuing anyway)"
 			else
@@ -454,9 +457,9 @@ bld_want_workdir() {
 		if ! [[ ${ARG_TARGETS+set} ]]; then
 			return 0
 		fi
-		local a="$(bld_check_workdir_get_file "$1" "targets_list")"
-		local b="$(print_array "${ARG_TARGETS[@]}")"
-		if ! [[ $a == $b ]]; then
+		a="$(bld_check_workdir_get_file "$1" "targets_list")"
+		b="$(print_array "${ARG_TARGETS[@]}")"
+		if ! [[ $a == "$b" ]]; then
 			if [[ ${ARG_CONTINUE+set} ]]; then
 				warn "not using workdir $label -- explicit targets changed"
 			else
@@ -480,7 +483,7 @@ bld_collect_workdirs() {
 	fi
 
 	local name
-	find "$WORKDIR_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | while read name; do
+	find "$WORKDIR_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | while IFS='' read -r name; do
 		if bld_not_want_workdir "$name"; then
 			log "removing obsolete session $name"
 			bld_remove_workdir "$name"
@@ -1010,8 +1013,9 @@ bld_sub_fetch() {
 		# rollback pkgver=, pkgrel= updates
 		local pkgbuild="$pkgbuild_dir/PKGBUILD"
 		if ! git diff-index --quiet HEAD -- "$pkgbuild"; then
-			local pkgbuild_diff="$(mktemp)"
-			local pkgbuild_bak="$(mktemp -p "$pkgbuild_dir")"
+			local pkgbuild_diff pkgbuild_bak
+			pkgbuild_diff="$(mktemp)"
+			pkgbuild_bak="$(mktemp -p "$pkgbuild_dir")"
 			ltrap "rm -f '$pkgbuild_bak' '$pkgbuild_diff'"
 			ltrap "mv -f '$pkgbuild_bak' '$pkgbuild'"
 			cp -a "$pkgbuild" "$pkgbuild_bak"
@@ -1048,9 +1052,10 @@ bld_sub_fetch() {
 
 		# pull PKGBUILD tree (if there is any)
 		if (( ARG_NOPULL == 0 )) && git rev-parse --verify --quiet '@{u}' &>/dev/null; then
-			local upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"
-			local remote="${upstream%%/*}"
-			local _asproot="${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}"
+			local upstream remote _asproot
+			upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"
+			remote="${upstream%%/*}"
+			_asproot="${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}"
 			case "$(git config remote.$remote.url)" in
 			"$_asproot")
 				# resolve the true package name we are tracking in ABS
@@ -1232,7 +1237,7 @@ if ! [[ ${BLD_REEXECUTED+set} ]]; then
 		--collect \
 		--service-type=exec \
 		"${SYSTEMD_RUN_ARGS[@]}" \
-		-p User=$(id -un) \
+		-p User="$(id -un)" \
 		-E BLD_REEXECUTED=1 \
 		-E BLD_ARGV0="$BLD_ARGV0" \
 		"$BASH_SOURCE" "$@"
@@ -1249,20 +1254,20 @@ fi
 # Execute a subroutine if requested
 if [[ $ARG_SUBROUTINE == fetch ]]; then
 	if (( ${#ARG_TARGETS[@]} != 1 )); then
-		die "bad usage: $0 ${@@Q}"
+		die "bad usage: $0 ${*@Q}"
 	fi
 	ltrap "bld_sub_fetch__exit"
 	bld_sub_fetch "${ARG_TARGETS[@]}"
 	exit $(( BLD_OK ? 0 : 1 ))
 elif [[ $ARG_SUBROUTINE == build ]]; then
 	if (( ${#ARG_TARGETS[@]} != 1 )); then
-		die "bad usage: $0 ${@@Q}"
+		die "bad usage: $0 ${*@Q}"
 	fi
 	ltrap "bld_sub_build__exit"
 	bld_sub_build "${ARG_TARGETS[@]}"
 	exit $(( BLD_OK ? 0 : 1 ))
 elif [[ ${ARG_SUBROUTINE+set} ]]; then
-	die "bad usage: $0 ${@@Q}"
+	die "bad usage: $0 ${*@Q}"
 fi
 
 # Prepare workdir
@@ -1368,7 +1373,7 @@ _phase_fetch() {
 	else
 		parallel_args+=( -j$(nproc) --bar )
 	fi
-	parallel "${parallel_args[@]}" "$0 ${ARGS_PASS[@]@Q} --sub=fetch {}" ::: "$@" || rc=$?
+	parallel "${parallel_args[@]}" "$0 ${ARGS_PASS[*]@Q} --sub=fetch {}" ::: "$@" || rc=$?
 }
 bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch
 

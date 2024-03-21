@@ -946,13 +946,20 @@ bld_sub_build() {
 	# log targets
 	bld_aur_build_dry >&2
 
+	# see if we have something to build
 	if ! bld_aur_build_dry | grep -qE '^build:'; then
 		BLD_OK=1
 		return
 	fi
 	bld_aur_build
 
-	BLD_OK=1
+	# see if we _still_ have something to build
+	if ! bld_aur_build_dry | grep -qE '^build:'; then
+		BLD_OK=1
+		return
+	fi
+	err "Not all packages were built"
+	return 1
 }
 
 bld_sub_fetch() {

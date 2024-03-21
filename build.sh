@@ -764,7 +764,7 @@ aur_list() {
 }
 
 generate_srcinfo() {
-	if [[ .SRCINFO -ot PKGBUILD ]]; then
+	if ! [[ .SRCINFO -nt PKGBUILD ]]; then
 		aur build--pkglist --srcinfo >.SRCINFO
 	fi
 }

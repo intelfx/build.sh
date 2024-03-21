@@ -1320,9 +1320,7 @@ else
 	print_array "${BLD_TARGETS[@]}" | bld_workdir_put_file "targets"
 fi
 
-if [[ ${ARG_NOFETCH+set} ]]; then
-	die "--no-fetch set, aborting as instructed"
-fi
+if ! [[ ${ARG_NOFETCH+set} ]]; then
 
 # Fetch targets
 # TODO: dependency resolution
@@ -1348,9 +1346,11 @@ _phase_fetch() {
 }
 bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch
 
-if [[ ${ARG_NOBUILD+set} ]]; then
-	die "--no-build set, aborting as instructed"
+else
+	warn "--no-fetch set, skipping fetch phase"
 fi
+
+if ! [[ ${ARG_NOBUILD+set} ]]; then
 
 # Build targets
 # TODO: determine which targets need to be built
@@ -1372,5 +1372,9 @@ _phase_build() {
 	done
 }
 bld_phase BLD_TARGETS BUILD_MSGS _phase_build
+
+else
+	warn "--no-build set, skipping build phase"
+fi
 
 bld_workdir_mark_finished

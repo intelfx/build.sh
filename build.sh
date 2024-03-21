@@ -943,6 +943,9 @@ bld_sub_build() {
 		return
 	fi
 
+	# log targets
+	bld_aur_build_dry >&2
+
 	if ! bld_aur_build_dry | grep -qE '^build:'; then
 		BLD_OK=1
 		return

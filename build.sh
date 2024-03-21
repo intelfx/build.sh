@@ -658,15 +658,13 @@ setup_one() {
 		return 1
 	fi
 
-	# FIXME read from package properties
-	case "$pkg" in
-	linux|linux-*)
-		# non-clean builds
+	# FIXME rework this into true package properties
+	bld_check_tag() {
+		grep -qE "^ *# *bld *:(|.* )$1($| )" "$pkgbuild_dir/PKGBUILD"
+	}
+	if bld_check_tag unclean; then
 		local ARG_UNCLEAN=1
-		;;
-	*)
-		;;
-	esac
+	fi
 
 	# set up chroot
 	case "$ARG_CHROOT" in

@@ -665,6 +665,9 @@ setup_one() {
 	if bld_check_tag unclean; then
 		local ARG_UNCLEAN=1
 	fi
+	if bld_check_tag srcver-no-prepare; then
+		local ARG_SRCVER_NOPREPARE=1
+	fi
 
 	# set up chroot
 	case "$ARG_CHROOT" in
@@ -737,6 +740,12 @@ setup_one() {
 		makepkg_args_prepare+=( --cleanbuild --clean )
 		# ...and --cleanbuild here for a bit more spead and a bit less isolation
 		makepkg_args_build+=( --cleanbuild --clean )
+	fi
+
+	# some packages rely on makedepends in prepare(), thankfully for those packages
+	# prepare() is not needed to get the version
+	if [[ ${ARG_SRCVER_NOPREPARE+set} ]]; then
+		makepkg_args_prepare+=( --noprepare )
 	fi
 
 	# add default, config and command-line args

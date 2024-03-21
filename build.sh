@@ -45,6 +45,7 @@ Build environment options:
 	--reuse-chroot
 	--isolate-chroot
 	--unclean
+	--retain
 
 Build process options:
 	--margs MAKEPKG-ARG[,...]
@@ -68,6 +69,7 @@ declare -A ARGS=(
 	[--reuse-chroot]="ARG_REUSE_CHROOT pass=ARGS_PASS"
 	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
 	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
+	[--retain]="ARG_RETAIN pass=ARGS_PASS"
 	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
 	[--test]="ARG_TEST pass=ARGS_PASS"
 	[--reset]=ARG_RESET
@@ -158,6 +160,10 @@ fi
 
 if [[ ${ARG_NO_CHROOT+set} && ${ARG_ISOLATE_CHROOT+set} ]]; then
 	usage "--no-chroot and --isolate-chroot are mutually exclusive"
+fi
+
+if [[ ${ARG_UNCLEAN+set} && ${ARG_RETAIN+set} ]]; then
+	usage "--unclean and --retain are mutually implying"
 fi
 
 
@@ -605,6 +611,7 @@ EOF
 		ARG_REUSE_CHROOT \
 		ARG_ISOLATE_CHROOT \
 		ARG_UNCLEAN \
+		ARG_RETAIN \
 		ARG_NO_CCACHE \
 		ARG_RESET \
 		ARG_CONTINUE \
@@ -722,14 +729,16 @@ setup_one() {
 	fi
 
 	# set up srcdir cleanup
-	if ! [[ ${ARG_UNCLEAN+set} ]]; then
-		# optionally drop --clean here...
-		makepkg_args_prepare=( --cleanbuild --clean )
-		# ...and --cleanbuild here for a bit more spead and a bit less isolation
-		makepkg_args_build=( --cleanbuild --clean )
+	if [[ ${ARG_UNCLEAN+set} ]]; then
+		:
+	elif [[ ${ARG_RETAIN+set} ]]; then
+		makepkg_args_prepare+=( --cleanbuild )
+		makepkg_args_build+=( --cleanbuild )
 	else
-		makepkg_args_prepare=()
-		makepkg_args_build=()
+		# optionally drop --clean here...
+		makepkg_args_prepare+=( --cleanbuild --clean )
+		# ...and --cleanbuild here for a bit more spead and a bit less isolation
+		makepkg_args_build+=( --cleanbuild --clean )
 	fi
 
 	# add default, config and command-line args

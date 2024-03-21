@@ -937,7 +937,7 @@ bld_sub_build() {
 	setup_one "$@"
 	cd "$pkgbuild_dir"
 
-	if [[ ${BLD_TEST+set} ]]; then
+	if [[ ${ARG_TEST+set} ]]; then
 		AUR_REPO_ADD=/bin/true bld_aur_build --force --no-sync
 		BLD_OK=1
 		return

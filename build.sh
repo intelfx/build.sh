@@ -962,7 +962,7 @@ bld_sub_build() {
 	cd "$pkgbuild_dir"
 
 	if [[ ${ARG_TEST+set} ]]; then
-		AUR_REPO_ADD=/bin/true bld_aur_build --force --no-sync
+		bld_aur_build --force --no-save --discard
 		BLD_OK=1
 		return
 	fi

@@ -968,7 +968,16 @@ bld_sub_build() {
 	fi
 
 	# log targets
-	bld_aur_build_dry >&2
+	local build=0 exist=0
+	bld_aur_build_dry | while IFS=: read -r action pkgbase pkgpath; do
+		case "$action" in
+		build) log  "$pkgbase: will build: ${pkgpath#file://}"; (( ++build )) ;;
+		exist) warn "$pkgbase: already exists: ${pkgpath#file://}"; (( ++exist )) ;;
+		*) die "Failed to parse \`aur build --dry-run\` output: $action:$pkgbase:$pkgpath" ;;
+		esac
+	done
+	# TODO: bail if some packages are built and some aren't
+	#       and we aren't doing a `--force` or something
 
 	# see if we have something to build
 	if ! bld_aur_build_dry | grep -qE '^build:'; then

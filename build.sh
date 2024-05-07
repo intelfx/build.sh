@@ -124,6 +124,11 @@ unset CHROOT_PATH  # NOTE: queried and set below
 EXTRA_BIND_DIRS=(
 )
 
+
+[[ ${EXTRA_PACKAGES+set} ]] || \
+EXTRA_PACKAGES=(
+)
+
 # XXX set this to EXTRA_BIND_APIVFS=("/proc:/proc2" "/sys:/sys2") if intending
 # to run podman (or any other containers w/ userns) from PKGBUILDs in chrooted
 # (systemd-nspawned) builds;
@@ -1283,15 +1288,16 @@ bld_setup
 # TODO move it somewhere before the variables are exported in bld_setup()
 #      so that we can write out everything at once
 if [[ $ARG_CHROOT != no ]]; then
-	# This used to say `bld_aur_chroot --create --update -- -uu`,
-	# but `aur chroot --create` interprets positional arguments as
-	# packages to install instead of default groups, so this fails
-	# if the chroot actually needs to be created.
-	if ! bld_aur_chroot --path &>/dev/null; then
-		bld_aur_chroot --create
-	else
-		bld_aur_chroot --update -- -uu
-	fi
+	# Explicitly pass the default groups in addition to any extra
+	# packages to install, since `aur chroot --create` interprets
+	# positional arguments as packages to install in place of the
+	# default groups. In addition, this lets us pass `-uu` on the
+	# same command line and thus unify the `--create` and `--update`
+	# calls. (In the same vein, pass `--needed` to avoid repeated
+	# re-installation of the same packages on successive update
+	# calls.)
+	aur_chroot_pkgs=( base-devel "${EXTRA_PACKAGES[@]}" )
+	bld_aur_chroot --create --update -- -uu --needed "${aur_chroot_pkgs[@]}"
 
 	CHROOT_PATH="$(bld_aur_chroot --path)"
 	log "chroot path:        $CHROOT_PATH"

@@ -621,6 +621,9 @@ EOF
 		log "sccache.conf:       $sccache_conf"
 	fi
 
+	mkdir -p "$CCACHE_ROOT" "$SCCACHE_ROOT"
+	mkdir -p "$SCRATCH_ROOT" "$CONTAINERS_ROOT"
+
 	log "config profile:     $BLD_CONFIG ($BLD_CONFIG_FILE)"
 	log "working directory:  $BLD_WORKDIR"
 	log "build directory:    $SCRATCH_ROOT"

@@ -4,7 +4,8 @@ set -eo pipefail
 shopt -s lastpipe
 
 BLD_ROOT_DIR="$(dirname "$BASH_SOURCE")"
-BLD_CONFIG_DEFAULT="$BLD_ROOT_DIR/config.sh"
+BLD_CONFIG_DIR="$BLD_ROOT_DIR/config"
+BLD_CONFIG_DEFAULT="$BLD_CONFIG_DIR/default.sh"
 
 . "$BLD_ROOT_DIR/libbuild/libbuild.sh" || exit
 

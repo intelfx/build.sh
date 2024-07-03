@@ -18,7 +18,8 @@ _usage_common_syntax="Usage: $BLD_ARGV0 [-c|--config CONFIG]"
 _usage_common_options="
 Global options:
 	-h|--help		Print this usage help
-	-c|--config CONFIG 	Path to main configuration file or directory
+	-c|--config CONFIG 	Path to main configuration file or directory,
+				or name to be searched
 "
 
 _usage() {
@@ -99,7 +100,24 @@ fi
 # config
 #
 
-source "${ARG_CONFIG-$BLD_CONFIG_DEFAULT}"
+try_resolve_config() {
+	[[ -e "$1" ]] && BLD_CONFIG_FILE="$(realpath -qe "$1")"
+}
+
+BLD_CONFIG="${ARG_CONFIG-$BLD_CONFIG_DEFAULT}"
+BLD_CONFIG_FILE=
+
+if try_resolve_config "$BLD_CONFIG"; then
+	:
+elif [[ $BLD_CONFIG != */* ]] && try_resolve_config "$BLD_CONFIG_DIR/$BLD_CONFIG"; then
+	:
+elif [[ $BLD_CONFIG != */* ]] && try_resolve_config "$BLD_CONFIG_DIR/$BLD_CONFIG.sh"; then
+	:
+else
+	die "Could not find configuration profile ${BLD_CONFIG@Q}"
+fi
+
+source "$BLD_CONFIG_FILE"
 
 
 #
@@ -595,6 +613,7 @@ EOF
 		log "makepkg.conf (ccache): $MAKEPKG_CONF"
 	fi
 
+	log "config profile:     $BLD_CONFIG ($BLD_CONFIG_FILE)"
 	log "working directory:  $BLD_WORKDIR"
 	log "build directory:    $SCRATCH_ROOT"
 	log "PKGBUILD directory: $PKGBUILD_ROOT"

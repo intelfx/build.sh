@@ -592,6 +592,9 @@ bld_setup() {
 	fi
 
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
+		local ccache_conf="$CCACHE_ROOT/ccache.conf"
+		local sccache_conf="$SCCACHE_ROOT/sccache.conf"
+
 		local f="makepkg+ccache.conf"
 		cat "$MAKEPKG_CONF" - <<EOF | bld_workdir_put_file "$f"
 
@@ -600,9 +603,9 @@ bld_setup() {
 #########################################################################
 BUILDENV+=( ccache sccache )
 export CCACHE_DIR="$CCACHE_ROOT"
-export CCACHE_CONFIGPATH="$CCACHE_ROOT/ccache.conf"
+export CCACHE_CONFIGPATH="$ccache_conf"
 export SCCACHE_DIR="$SCCACHE_ROOT"
-export SCCACHE_CONF="$SCCACHE_ROOT/sccache.conf"
+export SCCACHE_CONF="$sccache_conf"
 
 # Unholy hack because makechrootpkg _appends_ BUILDDIR= to the makepkg.conf,
 # and we want the final \$BUILDDIR, not the one that's set by this point.
@@ -611,6 +614,11 @@ EOF
 
 		MAKEPKG_CONF="$(bld_workdir_get_file_name "$f")"
 		log "makepkg.conf (ccache): $MAKEPKG_CONF"
+
+		sponge "$ccache_conf" <<<"$CCACHE_CONFIG"
+		sponge "$sccache_conf" <<<"$SCCACHE_CONFIG"
+		log "ccache.conf:        $ccache_conf"
+		log "sccache.conf:       $sccache_conf"
 	fi
 
 	log "config profile:     $BLD_CONFIG ($BLD_CONFIG_FILE)"

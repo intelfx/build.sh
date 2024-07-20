@@ -710,7 +710,7 @@ setup_one() {
 
 	# set up chroot
 	case "$ARG_CHROOT" in
-	no) ;;
+	no) aurbuild_args+=( -s ) ;;
 	keep) aurbuild_args+=( -c ) ;;
 	reuse) aurbuild_args+=( -c --cargs-no-default ) ;;
 	transient) aurbuild_args+=( -c -T ) ;;

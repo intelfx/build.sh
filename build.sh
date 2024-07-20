@@ -766,6 +766,8 @@ setup_one() {
 		#		--bind-rw "$dir"
 		#	)
 		#done
+	else
+		aurbuild_env+=( "BUILDDIR=$SCRATCH_ROOT" )
 	fi
 
 	# set up srcdir cleanup
@@ -792,6 +794,11 @@ setup_one() {
 	makechrootpkg_args+=( "${EXTRA_MAKECHROOTPKG_ARGS[@]}" )
 	makepkg_args_prepare+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
+
+	# if we actually have any environment variables to set, wrap the command in env(1)
+	if [[ ${aurbuild_env+set} ]]; then
+		aurbuild_env=( env "${aurbuild_env[@]}" )
+	fi
 }
 
 aur_list() {
@@ -868,7 +875,8 @@ bld_aur_chroot() {
 bld_aur_build_dry() {
 	# skip $aurbuild_args and $makepkg_args_build
 	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
-	{ aur build \
+	{ "${aurbuild_env[@]}" \
+	  aur build \
 		-d "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
 		--makepkg-conf "$MAKEPKG_CONF" \
@@ -879,6 +887,7 @@ bld_aur_build_dry() {
 }
 
 bld_aur_build() {
+	"${aurbuild_env[@]}" \
 	aur build \
 		-d "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
@@ -896,6 +905,7 @@ bld_aur_srcver() {
 		makepkg_args_prepare+=( --verifysource --noextract )
 	fi
 
+	"${aurbuild_env[@]}" \
 	aur srcver \
 		--margs --config,"$MAKEPKG_CONF" \
 		--margs "$(join ',' "${makepkg_args_prepare[@]}")" \
@@ -989,6 +999,8 @@ bld_phase() {
 bld_sub_build() {
 	local pkg pkg_dir pkgbuild_dir
 	declare -a aurbuild_args makechrootpkg_args makepkg_args_prepare makepkg_args_build
+	declare -a aurbuild_env
+
 	setup_one "$@"
 	cd "$pkgbuild_dir"
 
@@ -1030,6 +1042,7 @@ bld_sub_fetch() {
 	eval "$(ltraps)"
 	local pkg pkg_dir pkgbuild_dir
 	declare -a aurbuild_args makechrootpkg_args makepkg_args_prepare makepkg_args_build
+	declare -a aurbuild_env
 
 	setup_one_pre "$@"
 

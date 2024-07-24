@@ -593,6 +593,8 @@ bld_setup() {
 
 	mkdir -p "$SCRATCH_ROOT" "$CONTAINERS_ROOT"
 
+	MAKEPKG_CONF_HOST="$MAKEPKG_CONF"
+
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
 		mkdir -p "$CCACHE_ROOT" "$SCCACHE_ROOT"
 
@@ -632,6 +634,7 @@ EOF
 	log "targets list file:  $TARGETS_FILE"
 	log "target repo name:   $REPO_NAME"
 	log "pacman.conf:        $PACMAN_CONF"
+	log "makepkg.conf (host):$MAKEPKG_CONF_HOST"
 	log "makepkg.conf:       $MAKEPKG_CONF"
 	log "chroot:             ${ARG_CHROOT}${ARG_ISOLATE_CHROOT+,isolated}"
 	log "test build:         $(bld_ternary "${ARG_TEST+set}" yes no)"
@@ -660,6 +663,7 @@ EOF
 	# Save computed variables
 	bld_mark_vars \
 		MAKEPKG_CONF \
+		MAKEPKG_CONF_HOST \
 		CHROOT_PKGS \
 		CHROOT_PATH \
 
@@ -908,7 +912,7 @@ bld_aur_srcver() {
 
 	"${aurbuild_env[@]}" \
 	aur srcver \
-		--margs --config,"$MAKEPKG_CONF" \
+		--margs --config,"$MAKEPKG_CONF_HOST" \
 		--margs "$(join ',' "${makepkg_args_prepare[@]}")" \
 		"$@"
 }

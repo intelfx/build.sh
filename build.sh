@@ -591,7 +591,11 @@ bld_setup() {
 		die "bld_setup() called twice!"
 	fi
 
+	mkdir -p "$SCRATCH_ROOT" "$CONTAINERS_ROOT"
+
 	if ! [[ ${ARG_NO_CCACHE+set} ]]; then
+		mkdir -p "$CCACHE_ROOT" "$SCCACHE_ROOT"
+
 		local ccache_conf="$CCACHE_ROOT/ccache.conf"
 		local sccache_conf="$SCCACHE_ROOT/sccache.conf"
 
@@ -620,9 +624,6 @@ EOF
 		log "ccache.conf:        $ccache_conf"
 		log "sccache.conf:       $sccache_conf"
 	fi
-
-	mkdir -p "$CCACHE_ROOT" "$SCCACHE_ROOT"
-	mkdir -p "$SCRATCH_ROOT" "$CONTAINERS_ROOT"
 
 	log "config profile:     $BLD_CONFIG ($BLD_CONFIG_FILE)"
 	log "working directory:  $BLD_WORKDIR"

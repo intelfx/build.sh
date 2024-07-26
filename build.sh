@@ -722,6 +722,10 @@ setup_one() {
 	*) die "internal error: $(declare -p ARG_CHROOT)" ;;
 	esac
 
+	# when running aur-srcver, point to the sandbox $HOME explicitly
+	# (for cargo and friends)
+	aurbuild_host_env+=( "BUILDDIR=$SCRATCH_ROOT" "HOME=$SCRATCH_ROOT" )
+
 	# configure chroot
 	if [[ $ARG_CHROOT != no ]]; then
 		if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
@@ -772,7 +776,9 @@ setup_one() {
 		#	)
 		#done
 	else
-		aurbuild_env+=( "BUILDDIR=$SCRATCH_ROOT" )
+		# if not chrooted, also point aur-build towards sandbox $HOME
+		# (see above)
+		aurbuild_env=( "${aurbuild_host_env[@]}" )
 	fi
 
 	# set up srcdir cleanup
@@ -908,7 +914,7 @@ bld_aur_srcver() {
 	fi
 
 	# if we actually have any environment variables to set, wrap the command in env(2)
-	${aurbuild_env+"env"} "${aurbuild_env[@]}" \
+	${aurbuild_host_env+"env"} "${aurbuild_host_env[@]}" \
 	aur srcver \
 		--margs --config,"$MAKEPKG_CONF_HOST" \
 		--margs "$(join ',' "${makepkg_args_prepare[@]}")" \
@@ -1002,7 +1008,7 @@ bld_phase() {
 bld_sub_build() {
 	local pkg pkg_dir pkgbuild_dir
 	declare -a aurbuild_args makechrootpkg_args makepkg_args_prepare makepkg_args_build
-	declare -a aurbuild_env
+	declare -a aurbuild_env aurbuild_host_env
 
 	setup_one "$@"
 	cd "$pkgbuild_dir"
@@ -1045,7 +1051,7 @@ bld_sub_fetch() {
 	eval "$(ltraps)"
 	local pkg pkg_dir pkgbuild_dir
 	declare -a aurbuild_args makechrootpkg_args makepkg_args_prepare makepkg_args_build
-	declare -a aurbuild_env
+	declare -a aurbuild_env aurbuild_host_env
 
 	setup_one_pre "$@"
 

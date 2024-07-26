@@ -799,11 +799,6 @@ setup_one() {
 	makechrootpkg_args+=( "${EXTRA_MAKECHROOTPKG_ARGS[@]}" )
 	makepkg_args_prepare+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
 	makepkg_args_build+=( "${EXTRA_MAKEPKG_ARGS[@]}" "${ARGS_MAKEPKG[@]}" )
-
-	# if we actually have any environment variables to set, wrap the command in env(1)
-	if [[ ${aurbuild_env+set} ]]; then
-		aurbuild_env=( env "${aurbuild_env[@]}" )
-	fi
 }
 
 aur_list() {
@@ -880,7 +875,8 @@ bld_aur_chroot() {
 bld_aur_build_dry() {
 	# skip $aurbuild_args and $makepkg_args_build
 	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
-	{ "${aurbuild_env[@]}" \
+	# if we actually have any environment variables to set, wrap the command in env(1)
+	{ ${aurbuild_env+"env"} "${aurbuild_env[@]}" \
 	  aur build \
 		-d "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
@@ -892,7 +888,8 @@ bld_aur_build_dry() {
 }
 
 bld_aur_build() {
-	"${aurbuild_env[@]}" \
+	# if we actually have any environment variables to set, wrap the command in env(1)
+	${aurbuild_env+"env"} "${aurbuild_env[@]}" \
 	aur build \
 		-d "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
@@ -910,7 +907,8 @@ bld_aur_srcver() {
 		makepkg_args_prepare+=( --verifysource --noextract )
 	fi
 
-	"${aurbuild_env[@]}" \
+	# if we actually have any environment variables to set, wrap the command in env(2)
+	${aurbuild_env+"env"} "${aurbuild_env[@]}" \
 	aur srcver \
 		--margs --config,"$MAKEPKG_CONF_HOST" \
 		--margs "$(join ',' "${makepkg_args_prepare[@]}")" \

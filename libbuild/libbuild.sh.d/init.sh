@@ -22,7 +22,9 @@ fi
 if [[ ${BLD_REEXECUTED+set} && ! ${BLD_HAS_PROFILE+set} ]]; then
 	. /etc/profile
 	#. $HOME/.profile
-	. $HOME/.profile.pkgbuild
+	if [[ -e $HOME/.profile.pkgbuild ]]; then
+		. $HOME/.profile.pkgbuild
+	fi
 	export BLD_HAS_PROFILE=1
 fi
 

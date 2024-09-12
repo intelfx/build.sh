@@ -79,6 +79,7 @@ declare -A ARGS=(
 	[--test]="ARG_TEST pass=ARGS_PASS"
 	[--reset]=ARG_RESET
 	[--continue::]="ARG_CONTINUE default="
+	[--fetch-jobs:]="ARG_FETCH_JOBS"
 	[--]=ARG_TARGETS
 )
 
@@ -1436,11 +1437,21 @@ declare -A FETCH_MSGS=(
 )
 _phase_fetch() {
 	local -a parallel_args
-	if bld_workdir_check_file "targets_list"; then
-		parallel_args+=( -j1 --tty )
-	else
-		parallel_args+=( -j$(nproc) --bar )
+	local parallel_jobs
+	if [[ ${ARG_FETCH_JOBS+set} ]]; then
+		parallel_jobs="$ARG_FETCH_JOBS"
+	elif bld_workdir_check_file "targets_list"; then
+		parallel_jobs=1
 	fi
+
+	if (( parallel_jobs > 1 )); then
+		parallel_args+=( -j"$parallel_jobs" )
+	elif (( parallel_jobs == 1 )); then
+		parallel_args+=( -j"$parallel_jobs" --tty )
+	else
+		parallel_args+=()
+	fi
+	parallel_args+=( --bar )
 	parallel "${parallel_args[@]}" "$0 ${ARGS_PASS[*]@Q} --sub=fetch {}" ::: "$@" || rc=$?
 }
 bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch

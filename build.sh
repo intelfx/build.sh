@@ -878,6 +878,15 @@ bld_aur_chroot() {
 		"$@"
 }
 
+bld_aur_chroot_path() {
+	local path
+
+	bld_aur_chroot --status \
+	| awk -F: '$1 == "chroot" { print $2 }' \
+	| IFS='' read -r path
+	printf "%s\n" "$path/root"
+}
+
 bld_aur_build_dry() {
 	# skip $aurbuild_args and $makepkg_args_build
 	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
@@ -1361,7 +1370,7 @@ if [[ $ARG_CHROOT != no ]]; then
 	aur_chroot_pkgs=( base-devel "${EXTRA_PACKAGES[@]}" )
 	bld_aur_chroot --create --update -- -uu --needed "${aur_chroot_pkgs[@]}"
 
-	CHROOT_PATH="$(bld_aur_chroot --path)"
+	CHROOT_PATH="$(bld_aur_chroot_path)"
 	log "chroot path:        $CHROOT_PATH"
 	bld_save_vars CHROOT_PATH  # TODO get rid of this, see above
 

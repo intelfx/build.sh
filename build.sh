@@ -620,7 +620,6 @@ trap 'export CCACHE_BASEDIR="\$BUILDDIR"' RETURN
 EOF
 
 		MAKEPKG_CONF="$(bld_workdir_get_file_name "$f")"
-		log "makepkg.conf (ccache): $MAKEPKG_CONF"
 
 		sponge "$ccache_conf" <<<"$CCACHE_CONFIG"
 		sponge "$sccache_conf" <<<"$SCCACHE_CONFIG"

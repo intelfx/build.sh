@@ -1413,6 +1413,12 @@ if [[ $ARG_CHROOT != no ]]; then
 	log "chroot path:        $CHROOT_PATH"
 	bld_save_vars CHROOT_PATH  # TODO get rid of this, see above
 
+	# XXX makepkg.conf.d snippets contain uncommented variables by default
+	#     and they override makepkg.conf, so remove them entirely because
+	#     we only bind-mount makepkg.conf
+	log "chroot: hacking up makepkg.conf(.d)"
+	sudo rm -rf "$CHROOT_PATH/etc/makepkg.conf.d"
+
 	# XXX host-specific overrides
 	log "chroot: hacking up subuid and subgid"
 	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subuid"
@@ -1421,7 +1427,7 @@ EOF
 	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subgid"
 builduser:100000:65536
 EOF
-	
+
 	# XXX host-specific overrides
 	log "chroot: hacking up /etc/containers/storage.conf"
 	sudo install -dm755 "$CHROOT_PATH/etc/containers"
@@ -1429,7 +1435,7 @@ EOF
 [storage]
   driver_priority = [ "btrfs", "overlay" ]
 EOF
-	
+
 	# XXX host-specific overrides
 	log "chroot: hacking up meson"
 	sudo install -Dm755 "$HOME/bin/wrappers/meson" "$CHROOT_PATH/usr/local/bin/meson"

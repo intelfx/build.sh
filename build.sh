@@ -744,10 +744,18 @@ setup_one() {
 				--bind-rw "$CONTAINERS_ROOT":/build/.local/share/containers
 			)
 
-			local dir
+			local dir flag
 			for dir in "${EXTRA_BIND_DIRS[@]}"; do
+				flag=--bind
+				if [[ $dir == *:rw ]]; then
+					dir="${dir%:rw}"
+					flag=--bind-rw
+				fi
+				if ! [[ $dir == *:* ]]; then
+					dir+=":$dir"
+				fi
 				aurbuild_args+=(
-					--bind "$dir:$dir"
+					"$flag" "$dir"
 				)
 			done
 		fi

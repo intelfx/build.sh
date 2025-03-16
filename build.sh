@@ -713,6 +713,9 @@ setup_one() {
 	if bld_check_tag srcver-no-prepare; then
 		local ARG_SRCVER_NOPREPARE=1
 	fi
+	if bld_check_tag srcver-reuse; then
+		local ARG_SRCVER_REUSE=1
+	fi
 
 	# set up chroot
 	case "$ARG_CHROOT" in
@@ -816,6 +819,13 @@ setup_one() {
 	# prepare() is not needed to get the version
 	if [[ ${ARG_SRCVER_NOPREPARE+set} ]]; then
 		makepkg_args_prepare+=( --noprepare )
+	fi
+
+	# some packages have a long ass prepare() and we might want to reuse the
+	# source tree prepared as part of aur-srcver
+	if [[ ${ARG_SRCVER_REUSE+set} ]]; then
+		array_filter_out makepkg_args_prepare makepkg_args_prepare "--cleanbuild"
+		makepkg_args_build+=( --noextract )
 	fi
 
 	# add default, config and command-line args

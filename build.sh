@@ -139,6 +139,7 @@ source "$BLD_CONFIG_FILE"
 : "${SCCACHE_ROOT="/var/tmp/makepkg-sccache"}"
 : "${CONTAINERS_ROOT="/var/tmp/makepkg-containers"}"
 unset CHROOT_PATH  # NOTE: queried and set below
+# : "${CHROOT_ROOT="/var/lib/aurbuild"}"
 
 [[ ${EXTRA_BIND_DIRS+set} ]] || \
 EXTRA_BIND_DIRS=(
@@ -728,6 +729,15 @@ setup_one() {
 
 	# configure chroot
 	if [[ $ARG_CHROOT != no ]]; then
+		if [[ ${CHROOT_ROOT} ]]; then
+			aurbuild_args+=(
+				-D "$CHROOT_ROOT"
+			)
+		fi
+		aurbuild_args+=(
+			"${EXTRA_AURCHROOT_ARGS[@]}"
+		)
+
 		if ! [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
 			aurbuild_args+=(
 				--bind-rw "$SCRATCH_ROOT":/build
@@ -871,7 +881,18 @@ bld_aur_repo_forall_others() {
 }
 
 bld_aur_chroot() {
+	local aurchroot_args
+	if [[ ${CHROOT_ROOT} ]]; then
+		aurchroot_args+=(
+			-D "$CHROOT_ROOT"
+		)
+	fi
+	aurchroot_args+=(
+		"${EXTRA_AURCHROOT_ARGS[@]}"
+	)
+
 	aur chroot \
+		"${aurchroot_args[@]}" \
 		--suffix "$REPO_NAME" \
 		--pacman-conf "$PACMAN_CONF" \
 		--makepkg-conf "$MAKEPKG_CONF" \

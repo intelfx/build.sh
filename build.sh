@@ -2,12 +2,15 @@
 
 set -eo pipefail
 shopt -s lastpipe
+shopt -s extglob
+shopt -s nullglob
 
 BLD_ROOT_DIR="$(dirname "$(realpath "$BASH_SOURCE")")"
 BLD_CONFIG_DIR="$BLD_ROOT_DIR/config"
 BLD_CONFIG_DEFAULT="$BLD_CONFIG_DIR/default.sh"
 
-. "$BLD_ROOT_DIR/libbuild/libbuild.sh" || exit
+# shellcheck source=./libbuild/libbuild.sh
+. "$BLD_ROOT_DIR/libbuild/libbuild.sh"
 
 
 #
@@ -118,6 +121,7 @@ else
 	die "Could not find configuration profile ${BLD_CONFIG@Q}"
 fi
 
+# shellcheck source=./config/default.sh
 source "$BLD_CONFIG_FILE"
 
 

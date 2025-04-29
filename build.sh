@@ -786,6 +786,8 @@ setup_one() {
 			)
 		fi
 
+		aurbuild_env+=( SYSTEMD_NSPAWN_TMPFS_TMP=0 )
+
 		# XXX ridiculously ugly host-dependent hack for launching
 		# podman containers inside systemd-nspawn because kernel
 		# wants to see an unobscured proc _somewhere_ prior to

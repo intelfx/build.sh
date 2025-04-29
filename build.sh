@@ -1417,6 +1417,14 @@ if [[ $ARG_CHROOT != no ]]; then
 	log "chroot path:        $CHROOT_PATH"
 	bld_save_vars CHROOT_PATH  # TODO get rid of this, see above
 
+	if [[ ${ARG_ISOLATE_CHROOT+set} ]]; then
+		CHROOT_HOME="$CHROOT_PATH/build"
+	else
+		CHROOT_HOME="$SCRATCH_ROOT"
+	fi
+	log "chroot home:        $CHROOT_HOME"
+	bld_save_vars CHROOT_HOME  # TODO get rid of this, see above
+
 	# XXX makepkg.conf.d snippets contain uncommented variables by default
 	#     and they override makepkg.conf, so remove them entirely because
 	#     we only bind-mount makepkg.conf

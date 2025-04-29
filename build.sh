@@ -734,6 +734,10 @@ setup_one() {
 	# (for cargo and friends)
 	aurbuild_host_env+=( "BUILDDIR=$SCRATCH_ROOT" "HOME=$SCRATCH_ROOT" )
 
+	if [[ ${EXTRA_GITCONFIG+set} ]]; then
+		aurbuild_host_env+=( "GIT_CONFIG_SYSTEM=$EXTRA_GITCONFIG" )
+	fi
+
 	# configure chroot
 	if [[ $ARG_CHROOT != no ]]; then
 		if [[ ${CHROOT_ROOT} ]]; then
@@ -774,6 +778,11 @@ setup_one() {
 			aurbuild_args+=(
 				-I ccache
 				-I sccache
+			)
+		fi
+		if [[ ${EXTRA_GITCONFIG+set} ]]; then
+			aurbuild_args+=(
+				--bind "$EXTRA_GITCONFIG:/etc/gitconfig"
 			)
 		fi
 

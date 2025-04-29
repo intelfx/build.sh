@@ -1,9 +1,14 @@
 #!/bin/bash
 
+set -eo pipefail
+shopt -s lastpipe
+shopt -s extglob
+shopt -s nullglob
+
 # load lib.sh
 
-source "${BASH_SOURCE%/*}/../lib/lib.sh" || return
-shopt -s nullglob
+# shellcheck source=../lib/lib.sh
+source "${BASH_SOURCE%/*}/../lib/lib.sh"
 
 # load libbuild
 

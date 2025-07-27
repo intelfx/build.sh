@@ -62,28 +62,28 @@ EOF
 
 declare -A ARGS=(
 	[-h|--help]=ARG_HELP
-	[--verbose]="ARG_VERBOSE pass=ARGS_PASS"
-	[--debug]="ARG_DEBUG pass=ARGS_PASS"
-	[--config:]="ARG_CONFIG pass=ARGS_PASS"
-	[--sub:]=ARG_SUBROUTINE
-	[--margs:]="ARGS_MAKEPKG split=, append pass=ARGS_PASS"
-	[--exclude:]="ARGS_EXCLUDE split=, append pass=ARGS_PASS"
-	[--rebuild]="ARG_REBUILD pass=ARGS_PASS"
-	[--no-pull]="ARG_NOPULL pass=ARGS_PASS"
-	[--no-fetch]="ARG_NOFETCH pass=ARGS_PASS"
+	[--verbose]='ARG_VERBOSE pass=ARGS_PASS'
+	[--debug]='ARG_DEBUG pass=ARGS_PASS'
+	[--config:]='ARG_CONFIG pass=ARGS_PASS'
+	[--sub:]='ARG_SUBROUTINE'
+	[--margs:]='ARGS_MAKEPKG split=, append pass=ARGS_PASS'
+	[--exclude:]='ARGS_EXCLUDE split=, append pass=ARGS_PASS'
+	[--rebuild]='ARG_REBUILD pass=ARGS_PASS'
+	[--no-pull]='ARG_NOPULL pass=ARGS_PASS'
+	[--no-fetch]='ARG_NOFETCH pass=ARGS_PASS'
 	[--no-build]='ARG_NOBUILD pass=ARGS_PASS'
-	[--no-chroot]="ARG_NO_CHROOT pass=ARGS_PASS"
-	[--keep-chroot]="ARG_KEEP_CHROOT pass=ARGS_PASS"
-	[--reuse-chroot]="ARG_REUSE_CHROOT pass=ARGS_PASS"
-	[--isolate-chroot]="ARG_ISOLATE_CHROOT pass=ARGS_PASS"
-	[--unclean]="ARG_UNCLEAN pass=ARGS_PASS"
-	[--retain]="ARG_RETAIN pass=ARGS_PASS"
-	[--no-ccache]="ARG_NO_CCACHE pass=ARGS_PASS"
-	[--test]="ARG_TEST pass=ARGS_PASS"
-	[--reset]=ARG_RESET
-	[--continue::]="ARG_CONTINUE default="
-	[--fetch-jobs:]="ARG_FETCH_JOBS"
-	[--]=ARG_TARGETS
+	[--no-chroot]='ARG_NO_CHROOT pass=ARGS_PASS'
+	[--keep-chroot]='ARG_KEEP_CHROOT pass=ARGS_PASS'
+	[--reuse-chroot]='ARG_REUSE_CHROOT pass=ARGS_PASS'
+	[--isolate-chroot]='ARG_ISOLATE_CHROOT pass=ARGS_PASS'
+	[--unclean]='ARG_UNCLEAN pass=ARGS_PASS'
+	[--retain]='ARG_RETAIN pass=ARGS_PASS'
+	[--no-ccache]='ARG_NO_CCACHE pass=ARGS_PASS'
+	[--test]='ARG_TEST pass=ARGS_PASS'
+	[--reset]='ARG_RESET'
+	[--continue::]='ARG_CONTINUE default='
+	[--fetch-jobs:]='ARG_FETCH_JOBS'
+	['--']='ARG_TARGETS'
 )
 
 parse_args ARGS "$@" || usage ""

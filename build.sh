@@ -843,6 +843,14 @@ setup_one() {
 		makepkg_args_build+=( --noextract )
 	fi
 
+	if [[ "${SIGN_GPGKEY+set}" ]]; then
+		aurbuild_args+=( --sign )
+		aurbuild_env+=( GPGKEY="$SIGN_GPGKEY" )
+		if [[ "${SIGN_GNUPGHOME+set}" ]]; then
+			aurbuild_env+=( GNUPGHOME="$SIGN_GNUPGHOME" )
+		fi
+	fi
+
 	# add default, config and command-line args
 	aurbuild_args+=( --remove "${EXTRA_AURBUILD_ARGS[@]}" )
 	makechrootpkg_args+=( "${EXTRA_MAKECHROOTPKG_ARGS[@]}" )

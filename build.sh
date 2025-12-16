@@ -735,7 +735,10 @@ setup_one() {
 	aurbuild_host_env+=( "BUILDDIR=$SCRATCH_ROOT" "HOME=$SCRATCH_ROOT" )
 
 	if [[ ${EXTRA_GITCONFIG+set} ]]; then
-		aurbuild_host_env+=( "GIT_CONFIG_GLOBAL=$EXTRA_GITCONFIG" "GIT_CONFIG_SYSTEM=/dev/null" )
+		aurbuild_host_env+=(
+			"GIT_CONFIG_GLOBAL=/dev/null"
+			"GIT_CONFIG_SYSTEM=$EXTRA_GITCONFIG"
+		)
 	fi
 
 	# configure chroot

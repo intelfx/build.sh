@@ -738,6 +738,7 @@ setup_one() {
 		aurbuild_host_env+=(
 			"GIT_CONFIG_GLOBAL=/dev/null"
 			"GIT_CONFIG_SYSTEM=$EXTRA_GITCONFIG"
+			"MAKEPKG_GIT_CONFIG=$EXTRA_GITCONFIG"
 		)
 	fi
 
@@ -786,6 +787,7 @@ setup_one() {
 		if [[ ${EXTRA_GITCONFIG+set} ]]; then
 			aurbuild_args+=(
 				--bind "$EXTRA_GITCONFIG:/etc/gitconfig"
+				--bind "$EXTRA_GITCONFIG:/etc/makepkg.d/gitconfig"
 			)
 		fi
 

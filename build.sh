@@ -418,7 +418,7 @@ bld_not_want_workdir() {
 	# does workdir have no timestamp?
 	bld_check_workdir_file "$1" ".timestamp" || return 0
 
-	local a b 
+	local a b
 	a="$(bld_check_workdir_stat_file "$1" ".timestamp" '%Y')" || return 0
 	b="$(date '+%s')"
 	# is workdir _VERY_ old?
@@ -448,7 +448,7 @@ bld_want_workdir() {
 
 	# check timestamp
 	# (if --continue, keep going)
-	local a b 
+	local a b
 	a="$(bld_check_workdir_stat_file "$1" ".timestamp" '%Y')"
 	b="$(date '+%s')"
 	if ! (( a > b - WORKDIR_MAX_AGE_SEC )); then

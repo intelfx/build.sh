@@ -1213,35 +1213,9 @@ bld_sub_fetch() {
 
 		# pull PKGBUILD tree (if there is any)
 		if (( ARG_NOPULL == 0 )) && git rev-parse --verify --quiet '@{u}' &>/dev/null; then
-			local upstream remote _asproot
+			local upstream remote
 			upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"
 			remote="${upstream%%/*}"
-			_asproot="${ASPROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/asp}"
-			case "$(git config remote.$remote.url)" in
-			"$_asproot")
-				# resolve the true package name we are tracking in ABS
-				local asppkg="${upstream##*/}"
-				# Since recently, invoking more than one `asp update` simultaneously breaks something within Git:
-				#
-				# From https://github.com/archlinux/svntogit-packages
-				#  * branch              packages/pulseaudio -> FETCH_HEAD
-				# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
-				# error: Unable to write upstream branch configuration
-				# hint:
-				# hint: After fixing the error cause you may try to fix up
-				# hint: the remote tracking information by invoking
-				# hint: "git branch --set-upstream-to=packages/packages/gstreamer-vaapi".
-				# error: could not lock config file /home/operator/.cache/asp/.git/config: File exists
-				# error: Unable to write upstream branch configuration
-				# hint:
-				# hint: After fixing the error cause you may try to fix up
-				# hint: the remote tracking information by invoking
-				# hint: "git branch --set-upstream-to=packages/packages/pulseaudio".
-				#
-				#asp update "$pkg"
-				flock -x -w 10 "$_asproot/.asp" asp update "$asppkg"
-				;;
-			esac
 
 			if ! "${git_pull[@]}" --autostash; then
 				"${git_pull_abort[@]}" ||:

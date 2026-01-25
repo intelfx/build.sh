@@ -618,6 +618,7 @@ export CCACHE_DIR="$CCACHE_ROOT"
 export CCACHE_CONFIGPATH="$ccache_conf"
 export SCCACHE_DIR="$SCCACHE_ROOT"
 export SCCACHE_CONF="$sccache_conf"
+export SCCACHE_SERVER_UDS="$SCCACHE_ROOT/sccache.sock"
 
 # Unholy hack because makechrootpkg _appends_ BUILDDIR= to the makepkg.conf,
 # and we want the final \$BUILDDIR, not the one that's set by this point.

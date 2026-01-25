@@ -721,6 +721,9 @@ setup_one() {
 	if bld_check_tag srcver-reuse; then
 		local ARG_SRCVER_REUSE=1
 	fi
+	if bld_check_tag retain; then
+		local ARG_RETAIN=1
+	fi
 
 	# set up chroot
 	case "$ARG_CHROOT" in

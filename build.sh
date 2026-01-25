@@ -1200,25 +1200,14 @@ bld_sub_fetch() {
 			git checkout --quiet "$srcinfo"
 		fi
 
-		case "$pkg" in
-		linux|linux-tools)
-			local git_pull=( git pull --no-ff --no-rebase )
-			local git_pull_abort=( git merge --abort )
-			;;
-		*)
-			local git_pull=( git pull --no-ff --rebase )
-			local git_pull_abort=( git rebase --abort )
-			;;
-		esac
-
 		# pull PKGBUILD tree (if there is any)
 		if (( ARG_NOPULL == 0 )) && git rev-parse --verify --quiet '@{u}' &>/dev/null; then
 			local upstream remote
 			upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"
 			remote="${upstream%%/*}"
 
-			if ! "${git_pull[@]}" --autostash; then
-				"${git_pull_abort[@]}" ||:
+			if ! git pull --no-ff --rebase --autostash; then
+				git rebase --abort ||:
 				git stash pop ||:
 				err "failed to update: $pkg ($pkg_dir)"
 				return 1

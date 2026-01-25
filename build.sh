@@ -1195,7 +1195,7 @@ bld_sub_fetch() {
 		local srcinfo="$pkgbuild_dir/.SRCINFO"
 		if ! git ls-files --error-unmatch "$srcinfo" &>/dev/null; then
 			rm -f "$srcinfo"
-		elif ! git diff --quiet HEAD -- "$srcinfo"; then
+		elif ! git diff-index --quiet HEAD -- "$srcinfo"; then
 			git reset --quiet "$srcinfo"
 			git checkout --quiet "$srcinfo"
 		fi

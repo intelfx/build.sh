@@ -1220,6 +1220,18 @@ bld_sub_fetch() {
 			git checkout --quiet "$srcinfo"
 		fi
 
+		# refresh index again after potentially modifying files
+		git update-index --refresh -q &>/dev/null ||:
+
+		# commit any pending changes (autostash sucks)
+		local dirty=0
+		if ! git diff-index --quiet HEAD --; then
+			dirty=1
+		fi
+		if (( dirty )); then
+			git commit -a -m "WIP: local changes"
+		fi
+
 		# pull PKGBUILD tree (if there is any)
 		if (( ARG_NOPULL == 0 )) && git rev-parse --verify --quiet '@{u}' &>/dev/null; then
 			local upstream remote

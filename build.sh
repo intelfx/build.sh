@@ -914,6 +914,61 @@ git() {
 	bld_git "$@"
 }
 
+bld_git_rebase_maybe_abort() {
+	if [[ -d $git_dir/rebase-merge ]]; then
+		git rebase --abort ||:
+	fi
+}
+
+bld_git_rebase_repeatedly() {
+	local git_dir rc=0
+	eval "$(ltraps)"
+
+	git_dir="$(git rev-parse --git-dir)"
+
+	ltrap "bld_git_rebase_maybe_abort"
+	git rebase "$@" && rc=0 || rc=$?
+
+	while (( rc != 0 )) || [[ -d $git_dir/rebase-merge ]]; do
+		# check if we can resolve conflicts
+		local -a conflicts
+		git diff --name-only --diff-filter=U \
+			| readarray -t conflicts
+
+		local file resolved=0 unresolved=0
+		for file in "${conflicts[@]}"; do
+			case "$file" in
+			.SRCINFO)
+				generate_srcinfo --force
+				git add "$file"
+				(( ++resolved ))
+				;;
+			*)
+				(( ++unresolved ))
+				;;
+			esac
+		done
+
+		if (( !resolved || unresolved )); then
+			# either could not resolve all conflicts programmatically,
+			# or rebase failed for non-conflict reasons
+			lruntrap
+			err "failed to update: $pkg ($pkg_dir)"
+			return 1
+		fi
+
+		# all conflicts were resolved programmatically, try again
+		# play along if the index turned out empty
+		if git diff-index --quiet HEAD --; then
+			git rebase --skip && rc=0 || rc=$?
+		else
+			# emulate `git rebase --continue --no-edit`
+			GIT_EDITOR=true \
+			git rebase --continue && rc=0 || rc=$?
+		fi
+	done
+}
+
 bld_aur_repo() {
 	aur repo \
 		-d "$REPO_NAME" \
@@ -1238,11 +1293,17 @@ bld_sub_fetch() {
 			upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}')"
 			remote="${upstream%%/*}"
 
-			if ! git pull --no-ff --rebase --autostash; then
-				git rebase --abort ||:
-				git stash pop ||:
-				err "failed to update: $pkg ($pkg_dir)"
-				return 1
+			local left right rc=0
+			git fetch "$remote"
+
+			git rev-list --left-right --count "@{u}..." \
+				| IFS=$'\t' read -r left right
+
+			if (( left )); then
+				if ! bld_git_rebase_repeatedly "@{u}"; then
+					err "failed to rebase $pkg ($pkg_dir)"
+					return 1
+				fi
 			fi
 		fi
 	fi

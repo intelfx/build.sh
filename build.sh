@@ -47,6 +47,9 @@ Behavior modifiers:
 	--no-pull		skip updating PKGBUILD
 	--no-fetch		skip fetching phase entirely, only build
 	--no-build		skip building phase entirely, only fetch
+	--repackage		run \`makepkg -R\` in lieu of normal build
+				(implies \`--no-fetch\` and \`--unclean\`, but not \`--retain\`)
+				(to be used after \`--retain\` or a failed build)
 
 Build environment options:
 	--no-ccache		do not use {s,}ccache for building the packages
@@ -98,6 +101,7 @@ declare -A ARGS=(
 	[--reset]='ARG_RESET'
 	[--continue::]='ARG_CONTINUE default='
 	[--fetch-jobs:]='ARG_FETCH_JOBS'
+	['-R|--repackage']='ARG_REPACKAGE pass=ARGS_PASS'
 	['--']='ARG_TARGETS'
 )
 
@@ -659,6 +663,7 @@ EOF
 	log "makepkg.conf:       $MAKEPKG_CONF"
 	log "chroot:             ${ARG_CHROOT}${ARG_ISOLATE_CHROOT+,isolated}"
 	log "test build:         $(bld_ternary "${ARG_TEST+set}" yes no)"
+	log "repackage only:     $(bld_ternary "${ARG_REPACKAGE+set}" yes no)"
 
 	bld_reset_vars
 
@@ -680,6 +685,7 @@ EOF
 		ARG_RESET \
 		ARG_CONTINUE \
 		ARG_TEST \
+		ARG_REPACKAGE \
 		# EOL
 
 	# Save computed variables
@@ -867,6 +873,15 @@ setup_one() {
 	if [[ ${ARG_SRCVER_REUSE+set} ]]; then
 		array_filter_out makepkg_args_prepare makepkg_args_prepare "--cleanbuild"
 		makepkg_args_build+=( --noextract )
+	fi
+
+	# if a repackage is requested, reuse the existing source tree
+	# (which is implied by the concept of a repackage)
+	if [[ ${ARG_REPACKAGE+set} ]]; then
+		array_filter_out makepkg_args_build makepkg_args_build "--cleanbuild"
+		makepkg_args_build+=( --repackage )
+		# protect against ever running makepkg in fetch stage
+		makepkg_args_prepare=( --poison-arg-must-not-run-makepkg-for-fetch )
 	fi
 
 	if [[ "${SIGN_GPGKEY+set}" ]]; then
@@ -1600,7 +1615,7 @@ else
 	print_array "${BLD_TARGETS[@]}" | bld_workdir_put_file "targets"
 fi
 
-if ! [[ ${ARG_NOFETCH+set} ]]; then
+if ! [[ ${ARG_NOFETCH+set} || ${ARG_REPACKAGE+set} ]]; then
 
 # Fetch targets
 # TODO: dependency resolution
@@ -1636,6 +1651,8 @@ _phase_fetch() {
 }
 bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch
 
+elif [[ ${ARG_REPACKAGE+set} ]]; then
+	warn "--repackage set, skipping fetch phase"
 else
 	warn "--no-fetch set, skipping fetch phase"
 fi

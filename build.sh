@@ -665,6 +665,7 @@ EOF
 		ARG_RESET \
 		ARG_CONTINUE \
 		ARG_TEST \
+		# EOL
 
 	# Save computed variables
 	bld_mark_vars \
@@ -672,6 +673,7 @@ EOF
 		MAKEPKG_CONF_HOST \
 		CHROOT_PKGS \
 		CHROOT_PATH \
+		# EOL
 
 	bld_commit_vars
 }

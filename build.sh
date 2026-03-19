@@ -965,15 +965,17 @@ bld_aur_chroot() {
 		"$@"
 }
 
+# shellcheck disable=SC2120
 bld_aur_chroot_path() {
 	local path
 
-	bld_aur_chroot --status \
+	bld_aur_chroot --status "$@" \
 	| awk -F: '$1 == "chroot" { print $2 }' \
 	| IFS='' read -r path
 	printf "%s\n" "$path/root"
 }
 
+# shellcheck disable=SC2120
 bld_aur_build_dry() {
 	# skip $aurbuild_args and $makepkg_args_build
 	# (aur-build picks up `-c` and goes to sync the chroot, which is slow)
@@ -989,6 +991,7 @@ bld_aur_build_dry() {
 	| sponge
 }
 
+# shellcheck disable=SC2120
 bld_aur_build() {
 	# if we actually have any environment variables to set, wrap the command in env(1)
 	${aurbuild_env+"env"} "${aurbuild_env[@]}" \
@@ -1002,6 +1005,7 @@ bld_aur_build() {
 		"$@"
 }
 
+# shellcheck disable=SC2120
 bld_aur_srcver() {
 	# XXX: gross hack to skip repeatedly extracting packages that do not deserve it
 	# XXX: however, append --verifysource to force makepkg to fetch the sources (if any)

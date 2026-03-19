@@ -1178,6 +1178,16 @@ bld_sub_fetch() {
 	fi
 
 	if [[ -e .git ]]; then
+		local git_dir
+		git_dir="$(git rev-parse --git-dir)"
+
+		# verify that the repository is not in a weird state
+		# (so far, just check for an ongoing rebase)
+		if [[ -e $git_dir/rebase-merge ]]; then
+			err "repository is not clean: $pkg ($pkg_dir)"
+			return 1
+		fi
+
 		# rollback pkgver=, pkgrel= updates
 		local pkgbuild="$pkgbuild_dir/PKGBUILD"
 		if ! git diff-index --quiet HEAD -- "$pkgbuild"; then

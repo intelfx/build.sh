@@ -1188,6 +1188,9 @@ bld_sub_fetch() {
 			return 1
 		fi
 
+		# refresh index before carrying out any operations
+		git update-index --refresh -q &>/dev/null ||:
+
 		# rollback pkgver=, pkgrel= updates
 		local pkgbuild="$pkgbuild_dir/PKGBUILD"
 		if ! git diff-index --quiet HEAD -- "$pkgbuild"; then

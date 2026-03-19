@@ -1139,7 +1139,7 @@ bld_sub_build() {
 		BLD_OK=1
 		return
 	fi
-	err "Not all packages were built"
+	err "not all packages were built: $pkg"
 	return 1
 }
 
@@ -1337,6 +1337,7 @@ bld_sub_fetch__exit() {
 	if (( BLD_OK )); then
 		bld_workdir_put_mark "fetch-ok/${ARG_TARGETS}"
 	else
+		err "failed to fetch: ${ARG_TARGETS}"
 		bld_workdir_put_mark "fetch-err/${ARG_TARGETS}"
 	fi
 }
@@ -1345,6 +1346,7 @@ bld_sub_build__exit() {
 	if (( BLD_OK )); then
 		bld_workdir_put_mark "build-ok/${ARG_TARGETS}"
 	else
+		err "failed to build: ${ARG_TARGETS}"
 		bld_workdir_put_mark "build-err/${ARG_TARGETS}"
 	fi
 }

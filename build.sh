@@ -874,8 +874,9 @@ aur_list() {
 		| jq -r 'if (.version == 5 and .type == "multiinfo") then .results[].Name else "AUR response: \(.)\n" | halt_error(1) end'
 }
 
+# shellcheck disable=SC2120
 generate_srcinfo() {
-	if ! [[ .SRCINFO -nt PKGBUILD ]]; then
+	if ! [[ $1 != --force && .SRCINFO -nt PKGBUILD ]]; then
 		aur build--pkglist --srcinfo >.SRCINFO
 	fi
 }

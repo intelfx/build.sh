@@ -40,20 +40,35 @@ Package selection options:
 	--exclude PACKAGE[,...]
 
 Behavior modifiers:
-	--test
-	--rebuild
-	--no-pull
-	--no-fetch
-	--no-build
+	--test			do not add built packages to the repo
+				(implies \`--rebuild\` but does not bump pkgrel)
+	--rebuild		force (re)building the package even if it exists
+				(bump pkgrel if necessary)
+	--no-pull		skip updating PKGBUILD
+	--no-fetch		skip fetching phase entirely, only build
+	--no-build		skip building phase entirely, only fetch
 
 Build environment options:
-	--no-ccache
-	--no-chroot
-	--keep-chroot
-	--reuse-chroot
-	--isolate-chroot
-	--unclean
-	--retain
+	--no-ccache		do not use {s,}ccache for building the packages
+				(skip installing them into the chroot,
+				 and do not enable the options in makepkg.conf)
+
+Chroot behavior options:
+	(default: use a transient chroot which is created before the build, and deleted after)
+	--no-chroot		do not use chroot at all, build directly on the host
+				(skip aur-chroot and makechrootpkg)
+	--keep-chroot		use a fixed chroot path, and keep it after build
+	--reuse-chroot		use a fixed chroot path, and reuse existing content in it
+
+	--isolate-chroot	in addition to the behavior chosen above,
+				do not persist the build user \$HOME on the host
+				(all caches and \$BUILDDIR will be fully ephemeral)
+
+Build directory options (only makes sense without \`--isolate-chroot\`):
+	--unclean		do not erase \$BUILDDIR before (or after) the build
+				(also implies \`--retain\`)
+	--retain		do not erase \$BUILDDIR after the build
+				(implied after failed builds to facilitate inspection)
 
 Build process options:
 	--margs MAKEPKG-ARG[,...]

@@ -1324,7 +1324,7 @@ bld_sub_fetch() {
 			remote="${upstream%%/*}"
 
 			local left right rc=0
-			git fetch "$remote"
+			git fetch "$remote" ||:
 
 			git rev-list --left-right --count "@{u}..." \
 				| IFS=$'\t' read -r left right
@@ -1541,7 +1541,7 @@ if [[ $ARG_CHROOT != no ]]; then
 	# re-installation of the same packages on successive update
 	# calls.)
 	aur_chroot_pkgs=( base-devel "${EXTRA_PACKAGES[@]}" )
-	bld_aur_chroot --create --update -- -uu --needed "${aur_chroot_pkgs[@]}"
+	bld_aur_chroot --create --update -- -uu --needed "${aur_chroot_pkgs[@]}" ||:
 
 	CHROOT_PATH="$(bld_aur_chroot_path)"
 	log "chroot path:        $CHROOT_PATH"

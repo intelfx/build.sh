@@ -1646,7 +1646,9 @@ _phase_fetch() {
 	else
 		parallel_args+=()
 	fi
-	parallel_args+=( --bar )
+	if [[ -t 0 && -t 1 && -t 2 ]]; then
+		parallel_args+=( --bar )
+	fi
 	parallel "${parallel_args[@]}" "$0 ${ARGS_PASS[*]@Q} --sub=fetch {}" ::: "$@" || rc=$?
 }
 bld_phase BLD_TARGETS FETCH_MSGS _phase_fetch

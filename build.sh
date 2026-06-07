@@ -7,7 +7,6 @@ shopt -s nullglob
 
 BLD_ROOT_DIR="$(dirname "$(realpath "$BASH_SOURCE")")"
 BLD_CONFIG_DIR="$BLD_ROOT_DIR/config"
-BLD_CONFIG_DEFAULT="$BLD_CONFIG_DIR/default.sh"
 
 # shellcheck source=./libbuild/libbuild.sh
 . "$BLD_ROOT_DIR/libbuild/libbuild.sh"
@@ -82,7 +81,8 @@ declare -A ARGS=(
 	[-h|--help]=ARG_HELP
 	[--verbose]='ARG_VERBOSE pass=ARGS_PASS'
 	[--debug]='ARG_DEBUG pass=ARGS_PASS'
-	[--config:]='ARG_CONFIG pass=ARGS_PASS'
+	[--config:]='ARG_CONFIG'
+	[--config-file:]='ARGS_CONFIG_FILES append'
 	[--sub:]='ARG_SUBROUTINE'
 	[--margs:]='ARGS_MAKEPKG split=, append pass=ARGS_PASS'
 	[--exclude:]='ARGS_EXCLUDE split=, append pass=ARGS_PASS'
@@ -123,25 +123,31 @@ fi
 # config
 #
 
-try_resolve_config() {
-	[[ -e "$1" ]] && BLD_CONFIG_FILE="$(realpath -qe "$1")"
-}
-
-BLD_CONFIG="${ARG_CONFIG-$BLD_CONFIG_DEFAULT}"
-BLD_CONFIG_FILE=
-
-if try_resolve_config "$BLD_CONFIG"; then
-	:
-elif [[ $BLD_CONFIG != */* ]] && try_resolve_config "$BLD_CONFIG_DIR/$BLD_CONFIG"; then
-	:
-elif [[ $BLD_CONFIG != */* ]] && try_resolve_config "$BLD_CONFIG_DIR/$BLD_CONFIG.sh"; then
-	:
+if [[ ${ARGS_CONFIG_FILES+set} ]]; then
+	# if --config-file is used, load the specified files directly
+	for file in "${ARGS_CONFIG_FILES[@]}"; do
+		bld_config_load_file "$file"
+	done
 else
-	die "Could not find configuration profile ${BLD_CONFIG@Q}"
+	# otherwise, load a user-specified profile: load default.sh first, then
+	# resolve the profile name specified on the command line (or in default.sh)
+
+	# shellcheck source=./config/default.sh
+	bld_config_load_nofail "default"
+
+	# default.sh may have set BLD_CONFIG; command-line --config overrides it
+	if [[ ${ARG_CONFIG+set} ]]; then
+		bld_config_load "$ARG_CONFIG"
+	elif [[ ${BLD_CONFIG+set} ]]; then
+		bld_config_load "$BLD_CONFIG"
+	else
+		die "No configuration profile specified"
+	fi
+
 fi
 
-# shellcheck source=./config/default.sh
-source "$BLD_CONFIG_FILE"
+# pass loaded config files to subprocesses
+ARGS_PASS+=( "${BLD_LOADED_CONFIG_ARGS[@]}" )
 
 
 #

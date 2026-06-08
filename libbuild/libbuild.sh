@@ -20,7 +20,7 @@ fi
 source "$__libbuild/init.sh" || return
 for __libbuild_file in "$__libbuild"/*.sh; do
 	if [[ "$__libbuild_file" != "$__libbuild/init.sh" ]]; then
-		source "$__libbuild_file" || return
+		source "$__libbuild_file"
 	fi
 done
 unset __libbuild __libbuild_file

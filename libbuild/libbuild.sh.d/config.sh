@@ -68,7 +68,8 @@ bld_config_load_file() {
 		BLD_CONFIG_FILE="$path"
 	fi
 
-	# shellcheck source=/dev/null
+	# give shellcheck some non-unreasonable file to load
+	# shellcheck source=./config/default.sh
 	source "$path"
 	BLD_LOADED_CONFIGS+=( "$path" )
 	BLD_LOADED_CONFIG_ARGS+=( --config-file "$path" )

@@ -202,6 +202,22 @@ SYSTEMD_RUN=(
 SYSTEMD_RUN_ARGS=(
 )
 
+# Privilege elevation for open-coded root operations (chroot fixups etc.).
+[[ ${SUDO+set} ]] || \
+SUDO=(
+	sudo
+)
+
+# Privilege elevation for the Arch build tooling (aurutils, makechrootpkg, ...).
+# aurutils reads $AUR_PACMAN_AUTH from the environment, defaulting to plain
+# sudo, so export it here when a config has set it. Note that aur-chroot only
+# knows how to carry the build environment (PKGDEST etc.) across `sudo`; for
+# any other auth command the config is responsible for preserving those
+# variables itself (see config/cain.sh).
+if [[ ${AUR_PACMAN_AUTH+set} ]]; then
+	export AUR_PACMAN_AUTH
+fi
+
 # convert some arguments from a user-preferred form into the
 # developer-preferred form
 if (( (ARG_NO_CHROOT + ARG_KEEP_CHROOT + ARG_REUSE_CHROOT) > 1 )); then
@@ -1485,6 +1501,10 @@ bld_sub_build__exit() {
 
 # Reexecute in clean environment
 if ! [[ ${BLD_REEXECUTED+set} ]]; then
+	# Use --config-file= to pass resolved file paths to the re-executed process
+	# to avoid breakage in case we were passed cwd-relative paths by the user.
+	# FIXME: we do not filter existing --config= args, which get ignored anyway
+	# when --config-file= are present, but the command line ends up ugly
 	exec "${SYSTEMD_RUN[@]}" \
 		--pty \
 		--same-dir \
@@ -1495,7 +1515,7 @@ if ! [[ ${BLD_REEXECUTED+set} ]]; then
 		-p User="$(id -un)" \
 		-E BLD_REEXECUTED=1 \
 		-E BLD_ARGV0="$BLD_ARGV0" \
-		"$BASH_SOURCE" "$@"
+		"$BASH_SOURCE" "${BLD_LOADED_CONFIG_ARGS[@]}" "$@"
 fi
 
 eval "$(globaltraps)"
@@ -1565,28 +1585,28 @@ if [[ $ARG_CHROOT != no ]]; then
 	#     and they override makepkg.conf, so remove them entirely because
 	#     we only bind-mount makepkg.conf
 	log "chroot: hacking up makepkg.conf(.d)"
-	sudo rm -rf "$CHROOT_PATH/etc/makepkg.conf.d"
+	"${SUDO[@]}" rm -rf "$CHROOT_PATH/etc/makepkg.conf.d"
 
 	# XXX host-specific overrides
 	log "chroot: hacking up subuid and subgid"
-	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subuid"
+	cat <<EOF | "${SUDO[@]}" sponge "$CHROOT_PATH/etc/subuid"
 builduser:100000:65536
 EOF
-	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/subgid"
+	cat <<EOF | "${SUDO[@]}" sponge "$CHROOT_PATH/etc/subgid"
 builduser:100000:65536
 EOF
 
 	# XXX host-specific overrides
 	log "chroot: hacking up /etc/containers/storage.conf"
-	sudo install -dm755 "$CHROOT_PATH/etc/containers"
-	cat <<EOF | sudo sponge "$CHROOT_PATH/etc/containers/storage.conf"
+	"${SUDO[@]}" install -dm755 "$CHROOT_PATH/etc/containers"
+	cat <<EOF | "${SUDO[@]}" sponge "$CHROOT_PATH/etc/containers/storage.conf"
 [storage]
   driver_priority = [ "btrfs", "overlay" ]
 EOF
 
 	# XXX host-specific overrides
 	log "chroot: hacking up meson"
-	sudo install -Dm755 "$HOME/bin/wrappers/meson" "$CHROOT_PATH/usr/local/bin/meson"
+	"${SUDO[@]}" install -Dm755 "$HOME/bin/wrappers/meson" "$CHROOT_PATH/usr/local/bin/meson"
 fi
 
 # Find path to the sync database that we could query

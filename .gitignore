@@ -1,3 +1,8 @@
 /bld
 /config.sh
 /config-*.sh
+
+!/config/default.sh
+/config/*.sh
+/config/*makepkg*.conf
+/config/*pacman*.conf

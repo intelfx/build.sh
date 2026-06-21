@@ -1,5 +1,7 @@
 #!/hint/bash
 
+BLD_IGNORE_FILE=".bld.ignore"
+
 bld_ternary() {
 	if [[ "$1" ]]; then
 		echo "$2"

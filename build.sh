@@ -81,7 +81,7 @@ declare -A ARGS=(
 	[-h|--help]=ARG_HELP
 	[--verbose]='ARG_VERBOSE pass=ARGS_PASS'
 	[--debug]='ARG_DEBUG pass=ARGS_PASS'
-	[--config:]='ARG_CONFIG'
+	[-c\|--config:]='ARG_CONFIG'
 	[--config-file:]='ARGS_CONFIG_FILES append'
 	[--sub:]='ARG_SUBROUTINE'
 	[--margs:]='ARGS_MAKEPKG split=, append pass=ARGS_PASS'

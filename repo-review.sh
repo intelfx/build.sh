@@ -101,6 +101,10 @@ ARGS_PASS+=( "${BLD_LOADED_CONFIG_ARGS[@]}" )
 [[ ${REPO_OFFICIAL+set} ]] || \
 REPO_OFFICIAL=( {core,extra,community,multilib}{,-testing} )
 
+# pkgname suffixes treated as VCS/dynamic-version for the fuzzy outdated check
+[[ ${VCS_SUFFIXES+set} ]] || \
+VCS_SUFFIXES=( git nightly )
+
 
 #
 # functions
@@ -126,6 +130,130 @@ vergreater() {
 
 
 #
+# reporting framework
+#
+# Checks never print: they call `add_finding <category> <pkgbase-key> <fields...>`,
+# and a single `render` pass owns all formatting. This keeps each check a
+# self-contained block and the rendering centralized.
+#
+
+# category -> severity (error|warning|advisory)
+declare -A FINDING_SEVERITY=(
+	[structural]=error
+	[dup_target]=error
+	[missing_pkgbuild]=error
+	[not_built]=warning
+	[disk_orphan]=warning
+	[repo_orphan]=warning
+	[split_mismatch]=warning
+	[name_migration]=warning
+	[pkgset_arch]=warning
+	[pkgset_aur]=warning
+	[upstream_mismatch]=warning
+	[outdated]=warning
+	[outdated_fuzzy]=advisory
+)
+# category -> human-readable section title
+declare -A FINDING_TITLE=(
+	[structural]="Structural errors (pkgbase skipped)"
+	[dup_target]="Duplicate targets"
+	[missing_pkgbuild]="Missing PKGBUILDs (targeted, no source on disk)"
+	[not_built]="Not built (targeted, source present, absent from repo)"
+	[disk_orphan]="PKGBUILD orphans (on disk, not targeted, not built)"
+	[repo_orphan]="Package orphans (in repo, not targeted)"
+	[split_mismatch]="Split-package drift (disk vs repo)"
+	[name_migration]="pkgname migrated between pkgbases (repo behind disk)"
+	[pkgset_arch]="pkgname-set mismatch vs Arch"
+	[pkgset_aur]="pkgname provider mismatch vs AUR"
+	[upstream_mismatch]="Upstream tracking mismatch"
+	[outdated]="Outdated packages"
+	[outdated_fuzzy]="Outdated VCS packages (advisory; pkgver not directly comparable)"
+)
+# category -> tab-separated header row
+declare -A FINDING_COLS=(
+	[structural]=$'OBJECT\tPROBLEM'
+	[dup_target]=$'PKGBASE\tNOTE'
+	[missing_pkgbuild]=$'PKGBASE\tIN_REPO'
+	[not_built]=$'PKGBASE\tPKGNAMES'
+	[disk_orphan]=$'PKGBASE\tPATH\tPKGNAMES'
+	[repo_orphan]=$'PKGBASE\tPKGNAMES\tON_DISK'
+	[split_mismatch]=$'PKGBASE\tDELTA\tNOTE'
+	[name_migration]=$'PKGNAME\tREPO_BASE\tDISK_BASE'
+	[pkgset_arch]=$'PKGBASE\tDELTA\tPROVIDED_BY'
+	[pkgset_aur]=$'PKGNAME\tDISK_BASE\tAUR_BASE'
+	[upstream_mismatch]=$'PKGBASE\tTRACKS\tACTUAL\tNOTE'
+	[outdated]=$'PKGNAME\tREPO_VER\tUPSTREAM_VER\tSOURCE'
+	[outdated_fuzzy]=$'PKGNAME\tREPO_VER\tUPSTREAM_VER\tSOURCE'
+)
+# render order (also the order checks run)
+declare -a FINDING_ORDER=(
+	structural dup_target missing_pkgbuild not_built
+	disk_orphan repo_orphan split_mismatch name_migration
+	pkgset_arch pkgset_aur upstream_mismatch outdated outdated_fuzzy
+)
+
+# storage
+declare -A FINDINGS         # category -> newline-joined TSV rows
+declare -A FINDINGS_COUNT   # category -> count
+declare -A FINDINGS_BY_BASE # pkgbase -> space-joined unique category tags
+
+# $1: category  $2: pkgbase key (for the by-pkgbase index)  $3..: row fields
+add_finding() {
+	local cat="$1" base="$2"
+	shift 2
+	local IFS=$'\t'
+	FINDINGS["$cat"]+="$*"$'\n'
+	(( ++FINDINGS_COUNT["$cat"] ))
+	[[ " ${FINDINGS_BY_BASE["$base"]-} " == *" $cat "* ]] \
+		|| FINDINGS_BY_BASE["$base"]+=" $cat"
+}
+
+# Render the full report to stdout (progress logs stay on stderr).
+# Sets FINDING_RC to 1 if any error-severity finding was recorded.
+FINDING_RC=0
+render() {
+	local cat n base sev
+	local errs=0 warns=0 advs=0
+
+	for cat in "${FINDING_ORDER[@]}"; do
+		n="${FINDINGS_COUNT["$cat"]-0}"
+		(( n )) || continue
+		sev="${FINDING_SEVERITY["$cat"]}"
+		case "$sev" in
+		error)    (( errs += n )) ;;
+		warning)  (( warns += n )) ;;
+		advisory) (( advs += n )) ;;
+		esac
+
+		echo
+		echo "=== ${FINDING_TITLE["$cat"]} [$sev] ($n) ==="
+		{
+			echo "${FINDING_COLS["$cat"]}"
+			printf '%s' "${FINDINGS["$cat"]}" | sort
+		} | column -L -t -s$'\t'
+	done
+
+	if (( ${#FINDINGS_BY_BASE[@]} )); then
+		echo
+		echo "=== Findings by pkgbase (${#FINDINGS_BY_BASE[@]}) ==="
+		for base in "${!FINDINGS_BY_BASE[@]}"; do
+			printf '%s\t%s\n' "$base" "${FINDINGS_BY_BASE["$base"]# }"
+		done | sort | column -L -t -s$'\t'
+	fi
+
+	echo
+	if (( errs + warns + advs )); then
+		echo "=== Summary: $errs error(s), $warns warning(s), $advs advisory ==="
+	else
+		echo "=== Summary: no findings ==="
+	fi
+
+	(( errs )) && FINDING_RC=1
+	return 0
+}
+
+
+#
 # main
 #
 
@@ -137,6 +265,8 @@ declare -A MY_PKG_NAME_FULLNAME
 declare -A MY_PKG_NAME_VER
 # target repo: set of known pkgbase (pkgbase->"1")
 declare -A MY_PKG_BASE_IDX
+# target repo: pkgbase->pkgnames (space-separated)
+declare -A MY_PKG_BASE_NAMES
 
 # official repo: pkgname->pkgbase
 declare -A ARCH_PKG_NAME_BASE
@@ -146,6 +276,8 @@ declare -A ARCH_PKG_NAME_FULLNAME
 declare -A ARCH_PKG_NAME_VER
 # official repo: set of known pkgbase (pkgbase->"1")
 declare -A ARCH_PKG_BASE_IDX
+# official repo: pkgbase->pkgnames (space-separated); complete, used for set-diff
+declare -A ARCH_PKG_BASE_NAMES
 
 # AUR: pkgname->pkgbase
 declare -A AUR_PKG_NAME_BASE
@@ -155,10 +287,6 @@ declare -A AUR_PKG_NAME_FULLNAME
 declare -A AUR_PKG_NAME_VER
 # AUR: set of known pkgbase (pkgbase->"1")
 declare -A AUR_PKG_BASE_IDX
-
-# XXX: to remove
-PKGS=
-REPO_VER=
 
 # Targets list
 declare -a BLD_TARGETS
@@ -182,6 +310,9 @@ declare -A DISK_PKG_DIR_BASE_EXPECTED
 declare -A DISK_PKG_NAME_BASE
 # PKGBUILDs on disk: pkgbase->pkgnames (space-separated)
 declare -A DISK_PKG_BASE_NAMES
+# PKGBUILDs on disk: pkgbase->full version (informational only -- the on-disk
+# PKGBUILD is not guaranteed up-to-date, the build tool refreshes it just-in-time)
+declare -A DISK_PKG_BASE_VER
 # PKGBUILDs on disk: pkgbase->directory
 declare -A DISK_PKG_BASE_DIR
 # PKGBUILDs on disk: pkgname->directory
@@ -242,28 +373,37 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 	# jq_srcinfo -r '.packages | keys[]' | readarray -t pkgnames
 
 	cat "$dir/.SRCINFO.json" \
-	| jq -r '.pkgbase, (.packages | keys[])' \
+	| jq -r '
+		.pkgbase,
+		((if .epoch then (.epoch|tostring)+":" else "" end)
+			+ (.pkgver|tostring) + "-" + (.pkgrel|tostring)),
+		(.packages | keys[])' \
 	| readarray -t tmp
 	pkgbase="${tmp[0]}"
-	pkgnames=("${tmp[@]:1}")
+	pkgver="${tmp[1]}"
+	pkgnames=("${tmp[@]:2}")
 
 	if ! [[ $pkgbase ]]; then
 		err "Bad on-disk pkgbase @ ${dir@Q}: empty pkgbase"
+		add_finding structural "$dir" "$dir" "empty pkgbase"
 		continue
 	fi
 	if ! [[ ${pkgnames+set} ]]; then
 		err "Bad on-disk pkgbase @ ${dir@Q}: no pkgnames"
+		add_finding structural "$pkgbase" "$dir" "no pkgnames"
 		continue
 	fi
 
 	if [[ $pkgbase != "$pkgbase_expected" ]]; then
 		# contains $pkgbase twice to simplify reading
 		err "Misplaced on-disk pkgbase ${pkgbase@Q}: path=${dir@Q}, found=${pkgbase@Q}, expected=${pkgbase_expected@Q}"
+		add_finding structural "$pkgbase" "$dir" "misplaced pkgbase: found ${pkgbase@Q}, expected ${pkgbase_expected@Q}"
 		continue
 	fi
 	if [[ "${DISK_PKG_BASE_DIR["$pkgbase"]+set}" ]]; then
 		path1="${DISK_PKG_BASE_DIR["$pkgbase"]}"
 		err "Duplicate on-disk pkgbase ${pkgbase@Q}: path1=${path1@Q}, path2=${dir@Q}"
+		add_finding structural "$pkgbase" "$pkgbase" "duplicate pkgbase: also at ${path1@Q}"
 		continue
 	fi
 	for pkgname in "${pkgnames[@]}"; do
@@ -271,6 +411,7 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 			path1="${DISK_PKG_NAME_DIR["$pkgname"]}"
 			pkgbase1="${DISK_PKG_DIR_BASE["$path1"]}"
 			err "Duplicate on-disk pkgname ${pkgname@Q}: pkgbase1=$pkgbase1 @ ${path1@Q}, pkgbase2=$pkgbase @ ${dir@Q}"
+			add_finding structural "$pkgbase" "$pkgbase" "duplicate pkgname ${pkgname@Q}: also in pkgbase ${pkgbase1@Q}"
 			continue
 		fi
 	done
@@ -278,6 +419,7 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 	if [[ -e "$dir/.git" ]]; then
 		if ! git -C "$dir" rev-parse --verify --quiet HEAD &>/dev/null; then
 			err "Invalid git directory @ ${dir@Q}"
+			add_finding structural "$pkgbase" "$dir" "invalid git directory (no HEAD)"
 			continue
 		fi
 
@@ -309,12 +451,10 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 		remotes_uniq=("${!remotes_idx[@]}")
 
 		# get name of remote associated with the checked-out branch
-		if git -C "$dir" rev-parse \
-			--abbrev-ref \
-			--symbolic-full-name \
-			'@{u}' \
-			2>/dev/null \
-			| IFS= read -r head_remote_name; then
+		if head_ref="$(git -C "$dir" symbolic-ref -q HEAD 2>/dev/null)" \
+		&& head_remote_name="$(git -C "$dir" for-each-ref \
+			--format='%(upstream:remotename)' "$head_ref" 2>/dev/null)" \
+		&& [[ $head_remote_name ]]; then
 			head_remote="${remotes["$head_remote_name"]}"
 		fi
 
@@ -332,6 +472,7 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 	DISK_PKG_DIR_BASE_EXPECTED["$dir"]="$pkgbase_expected"
 	DISK_PKG_BASE_DIR["$pkgbase"]="$dir"
 	DISK_PKG_BASE_NAMES["$pkgbase"]="${pkgnames[*]}"
+	DISK_PKG_BASE_VER["$pkgbase"]="$pkgver"
 	for pkgname in "${pkgnames[@]}"; do
 		DISK_PKG_NAME_BASE["$pkgname"]="$pkgbase"
 		DISK_PKG_NAME_DIR["$pkgname"]="$dir"
@@ -353,15 +494,23 @@ log "Loading targets"
 timer_start
 cat_config "$TARGETS_FILE" | readarray -t BLD_TARGETS
 for pkgbase in "${BLD_TARGETS[@]}"; do
+	# Index every target regardless of disk presence so the coverage check
+	# (phase B) sees the complete set of targeted pkgbases. A target with no
+	# PKGBUILD on disk surfaces there as `missing_pkgbuild`.
+	if [[ ${TARGET_PKG_BASE_IDX["$pkgbase"]+set} ]]; then
+		add_finding dup_target "$pkgbase" "$pkgbase" "listed more than once in targets"
+		continue
+	fi
+	TARGET_PKG_BASE_IDX["$pkgbase"]="1"
+
 	if ! [[ ${DISK_PKG_BASE_DIR["$pkgbase"]+set} ]]; then
-		err "Bad target pkgbase ${pkgbase@Q}: pkgbase not found on disk"
+		dbg "Bad target pkgbase ${pkgbase@Q}: pkgbase not found on disk (-> missing_pkgbuild)"
 		continue
 	fi
 
 	read -ra pkgnames <<<"${DISK_PKG_BASE_NAMES["$pkgbase"]}"
 	BLD_TARGETS_NAMES+=( "${pkgnames[@]}" )
 
-	TARGET_PKG_BASE_IDX["$pkgbase"]="1"
 	TARGET_PKG_BASE_NAMES["$pkgbase"]="${pkgnames[*]}"
 	for pkgname in "${pkgnames[@]}"; do
 		TARGET_PKG_NAME_BASE["$pkgname"]="$pkgbase"
@@ -388,6 +537,7 @@ expac -S '%r %e %n %v' \
 		MY_PKG_NAME_FULLNAME["$pkgname"]="$repo/$pkgname"
 		MY_PKG_NAME_VER["$pkgname"]="$pkgver"
 		MY_PKG_BASE_IDX["$pkgbase"]="1"
+		MY_PKG_BASE_NAMES["$pkgbase"]+=" $pkgname"
 	elif ! in_array "$repo" "${REPO_OFFICIAL[@]}"; then
 		# other custom repositories -- ignore
 		:
@@ -398,6 +548,7 @@ expac -S '%r %e %n %v' \
 		ARCH_PKG_NAME_FULLNAME["$pkgname"]="$repo/$pkgname"
 		ARCH_PKG_NAME_VER["$pkgname"]="$pkgver"
 		ARCH_PKG_BASE_IDX["$pkgbase"]="1"
+		ARCH_PKG_BASE_NAMES["$pkgbase"]+=" $pkgname"
 	fi
 done
 timer_end
@@ -438,4 +589,200 @@ timer_end
 log "Querying AUR took $(timer_delta_fmt)"
 log "AUR: found ${#AUR_PKG_NAME_BASE[@]} packages in ${#AUR_PKG_BASE_IDX[@]} pkgbases"
 
-exit 1
+#
+# 4. Checks. Each phase only reads indices and calls `add_finding`; all output
+#    is produced by `render` at the end.
+#
+
+LIBSH_LOG_PREFIX="[check]"
+log "Running checks"
+timer_start
+
+# Helper: trimmed pkgnames of a pkgbase from a "names" map (leading-space safe).
+names_of() {
+	local -n _map="$1"
+	read -ra "${2:?}" <<<"${_map["$3"]-}"
+}
+
+#
+# B. Coverage: classify every known pkgbase by (Target, Disk, Repo) presence.
+#
+print_array \
+	"${!TARGET_PKG_BASE_IDX[@]}" \
+	"${!DISK_PKG_BASE_DIR[@]}" \
+	"${!MY_PKG_BASE_IDX[@]}" \
+| sort -u \
+| readarray -t ALL_PKG_BASES
+
+for base in "${ALL_PKG_BASES[@]}"; do
+	# empty-or-"1" so both `(( … ))` and `bld_ternary` read them correctly
+	t="${TARGET_PKG_BASE_IDX["$base"]+1}"
+	d="${DISK_PKG_BASE_DIR["$base"]+1}"
+	r="${MY_PKG_BASE_IDX["$base"]+1}"
+
+	if (( t )) && (( ! d )); then
+		# targeted but no PKGBUILD on disk -> cannot build
+		add_finding missing_pkgbuild "$base" "$base" "$(bld_ternary "$r" yes no)"
+	elif (( t && d && ! r )); then
+		add_finding not_built "$base" "$base" "${DISK_PKG_BASE_NAMES["$base"]}"
+	elif (( ! t && d && ! r )); then
+		add_finding disk_orphan "$base" "$base" "${DISK_PKG_BASE_DIR["$base"]}" "${DISK_PKG_BASE_NAMES["$base"]}"
+	elif (( ! t && r )); then
+		add_finding repo_orphan "$base" "$base" "${MY_PKG_BASE_NAMES["$base"]# }" \
+			"$(bld_ternary "$d" "${DISK_PKG_BASE_DIR["$base"]-}" no)"
+	fi
+	# (t && d && r) is healthy; nothing to report.
+done
+
+#
+# C1. Disk<->Repo composition for healthy targets: split-package drift.
+#
+for base in "${!TARGET_PKG_BASE_IDX[@]}"; do
+	[[ ${DISK_PKG_BASE_DIR["$base"]+set} && ${MY_PKG_BASE_IDX["$base"]+set} ]] || continue
+
+	names_of DISK_PKG_BASE_NAMES dnames "$base"
+	names_of MY_PKG_BASE_NAMES rnames "$base"
+	set_difference_a dnames rnames only_disk
+	set_difference_a rnames dnames only_repo
+
+	for pkgname in "${only_disk[@]}"; do
+		add_finding split_mismatch "$base" "$base" "missing: $pkgname" "built by pkgbase but absent from repo"
+	done
+	for pkgname in "${only_repo[@]}"; do
+		# auto-generated debug packages are never listed in .SRCINFO -> not stale
+		[[ $pkgname == *-debug ]] && continue
+		# pkgnames that moved to another on-disk pkgbase are name_migration, not stale
+		[[ ${DISK_PKG_NAME_BASE["$pkgname"]+set} ]] && continue
+		add_finding split_mismatch "$base" "$base" "stale: $pkgname" "in repo, not built by any on-disk pkgbase"
+	done
+done
+
+# name migration: repo pkgname whose on-disk pkgbase differs from the repo's
+for pkgname in "${!MY_PKG_NAME_BASE[@]}"; do
+	disk_base="${DISK_PKG_NAME_BASE["$pkgname"]-}"
+	[[ $disk_base ]] || continue
+	repo_base="${MY_PKG_NAME_BASE["$pkgname"]}"
+	[[ $disk_base != "$repo_base" ]] || continue
+	add_finding name_migration "$repo_base" "$pkgname" "$repo_base" "$disk_base"
+done
+
+#
+# C2-arch. Disk<->Arch composition: true symmetric difference (Arch is complete).
+#
+for base in "${!DISK_PKG_BASE_DIR[@]}"; do
+	[[ ${ARCH_PKG_BASE_IDX["$base"]+set} ]] || continue
+
+	names_of DISK_PKG_BASE_NAMES dnames "$base"
+	names_of ARCH_PKG_BASE_NAMES anames "$base"
+	set_difference_a dnames anames only_disk
+	set_difference_a anames dnames only_arch
+
+	for pkgname in "${only_arch[@]}"; do
+		# arch ships pkgname under this pkgbase; do we build it (under any pkgbase)?
+		prov="${DISK_PKG_NAME_BASE["$pkgname"]-}"
+		add_finding pkgset_arch "$base" "$base" "+arch: $pkgname" \
+			"$(bld_ternary "$prov" "we build it as $prov" "not built by us")"
+	done
+	for pkgname in "${only_disk[@]}"; do
+		# we build pkgname under this pkgbase; where does arch put it, if anywhere?
+		prov="${ARCH_PKG_NAME_BASE["$pkgname"]-}"
+		add_finding pkgset_arch "$base" "$base" "-arch: $pkgname" \
+			"$(bld_ternary "$prov" "arch ships it as $prov" "not in arch")"
+	done
+done
+
+#
+# C2-aur. Disk<->AUR provider consistency only (RPC cannot enumerate a pkgbase).
+#         Only pkgname->pkgbase disagreements are sound; additions are invisible.
+#
+for pkgname in "${!DISK_PKG_NAME_BASE[@]}"; do
+	aur_base="${AUR_PKG_NAME_BASE["$pkgname"]-}"
+	[[ $aur_base ]] || continue
+	disk_base="${DISK_PKG_NAME_BASE["$pkgname"]}"
+	[[ $aur_base != "$disk_base" ]] || continue
+	add_finding pkgset_aur "$disk_base" "$pkgname" "$disk_base" "$aur_base"
+done
+
+#
+# D. Provenance: what the checkout tracks vs where the pkgbase actually lives.
+#
+for base in "${!DISK_PKG_BASE_DIR[@]}"; do
+	dir="${DISK_PKG_BASE_DIR["$base"]}"
+	head="${DISK_PKG_DIR_UPSTREAM_HEAD["$dir"]-}"
+	# only concrete tracked remotes are checkable; skip unknown/multiple/none
+	[[ $head == arch || $head == aur ]] || continue
+
+	in_arch="${ARCH_PKG_BASE_IDX["$base"]+1}"
+	in_aur="${AUR_PKG_BASE_IDX["$base"]+1}"
+	actual=""
+	[[ $in_arch ]] && actual="arch"
+	[[ $in_aur ]] && actual="${actual:+$actual+}aur"
+	actual="${actual:-none}"
+
+	note=
+	if [[ $head == aur ]]; then
+		if   (( in_arch )); then note="adopted by Arch -- switch to tracking Arch"
+		elif (( in_aur  )); then continue  # tracks aur, in aur: ok
+		else                     note="gone from AUR (deleted/renamed upstream)"
+		fi
+	else # head == arch
+		if   (( in_arch )); then continue  # tracks arch, in arch: ok
+		elif (( in_aur  )); then note="dropped from Arch to AUR"
+		else                     note="gone from Arch (deleted/renamed upstream)"
+		fi
+	fi
+	add_finding upstream_mismatch "$base" "$base" "$head" "$actual" "$note"
+done
+
+#
+# E1. Freshness: repo pkgname vs upstream of the same name (Arch preferred).
+#
+for pkgname in "${!MY_PKG_NAME_VER[@]}"; do
+	repover="${MY_PKG_NAME_VER["$pkgname"]}"
+	archver="${ARCH_PKG_NAME_VER["$pkgname"]-}"
+	aurver="${AUR_PKG_NAME_VER["$pkgname"]-}"
+
+	if [[ $archver ]] && vergreater "$archver" "$repover"; then
+		add_finding outdated "${MY_PKG_NAME_BASE["$pkgname"]}" \
+			"$pkgname" "$repover" "$archver" "${ARCH_PKG_NAME_FULLNAME["$pkgname"]}"
+	elif [[ $aurver ]] && vergreater "$aurver" "$repover"; then
+		add_finding outdated "${MY_PKG_NAME_BASE["$pkgname"]}" \
+			"$pkgname" "$repover" "$aurver" "${AUR_PKG_NAME_FULLNAME["$pkgname"]}"
+	fi
+done
+
+#
+# E2. Fuzzy freshness: strip a VCS suffix and re-run the outdated check (advisory).
+#
+for pkgname in "${!MY_PKG_NAME_VER[@]}"; do
+	base_name=
+	for suf in "${VCS_SUFFIXES[@]}"; do
+		if [[ $pkgname == *-"$suf" ]]; then
+			base_name="${pkgname%-"$suf"}"
+			break
+		fi
+	done
+	[[ $base_name ]] || continue
+
+	repover="${MY_PKG_NAME_VER["$pkgname"]}"
+	archver="${ARCH_PKG_NAME_VER["$base_name"]-}"
+	aurver="${AUR_PKG_NAME_VER["$base_name"]-}"
+
+	if [[ $archver ]] && vergreater "$archver" "$repover"; then
+		add_finding outdated_fuzzy "${MY_PKG_NAME_BASE["$pkgname"]}" \
+			"$pkgname" "$repover" "$archver" "${ARCH_PKG_NAME_FULLNAME["$base_name"]}"
+	elif [[ $aurver ]] && vergreater "$aurver" "$repover"; then
+		add_finding outdated_fuzzy "${MY_PKG_NAME_BASE["$pkgname"]}" \
+			"$pkgname" "$repover" "$aurver" "${AUR_PKG_NAME_FULLNAME["$base_name"]}"
+	fi
+done
+
+timer_end
+log "Running checks took $(timer_delta_fmt)"
+
+#
+# 5. Report.
+#
+LIBSH_LOG_PREFIX="[report]"
+render
+exit "$FINDING_RC"

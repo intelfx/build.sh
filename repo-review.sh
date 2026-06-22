@@ -205,6 +205,8 @@ declare -a FINDING_ORDER=(
 	debug_orphan debug_mismatch
 	pkgset_arch pkgset_aur upstream_mismatch outdated outdated_fuzzy
 )
+# leading columns in the output tables to consider coalescing
+declare -a FINDING_COALESCED_COLS=(PKGBASE PATH)
 
 # storage
 declare -A FINDINGS         # category -> newline-joined TSV rows
@@ -222,11 +224,32 @@ add_finding() {
 		|| FINDINGS_BY_BASE["$base"]+=" $cat"
 }
 
+# Blank out leading "key" columns ($1 = count) that repeat the previous row's
+# values, so `column -L` renders contiguous same-key rows as visually joined
+# cells. Operates on already-sorted input (sort groups equal keys together); the
+# header row (first line) is passed through untouched. A cell is blanked only if
+# it AND every key cell to its left match the row above, so a key never blanks
+# under a differing prefix.
+coalesce_cols() {
+	awk -v FS=$'\t' -v OFS=$'\t' -v k="$1" '
+		NR == 1 { print; next }
+		{
+			same = 1
+			for (i = 1; i <= k; i++) cur[i] = $i
+			for (i = 1; i <= k; i++)
+				if (same && cur[i] == prev[i]) $i = "-"; else same = 0
+			for (i = 1; i <= k; i++) prev[i] = cur[i]
+			print
+		}
+	'
+}
+
 # Render the full report to stdout (progress logs stay on stderr).
 # Sets FINDING_RC to 1 if any error-severity finding was recorded.
 FINDING_RC=0
 render() {
-	local cat n base sev
+	local cat n base sev col k
+	local -a hdr
 	local errs=0 warns=0 advs=0
 
 	for cat in "${FINDING_ORDER[@]}"; do
@@ -239,12 +262,21 @@ render() {
 		advisory) (( advs += n )) ;;
 		esac
 
+		# Coalesce the leading run of locator columns (PKGBASE/PATH) so repeated
+		# values read as joined cells. Their count is derived from the header.
+		IFS=$'\t' read -ra hdr <<<"${FINDING_COLS["$cat"]}"
+		k=0
+		for col in "${hdr[@]}"; do
+			in_array "$col" "${FINDING_COALESCED_COLS[@]}" || break
+			(( ++k ))
+		done
+
 		echo
 		echo "=== ${FINDING_TITLE["$cat"]} [$sev] ($n) ==="
 		{
 			echo "${FINDING_COLS["$cat"]}"
 			printf '%s' "${FINDINGS["$cat"]}" | sort
-		} | column -L -t -s$'\t'
+		} | coalesce_cols "$k" | column -L -t -s$'\t'
 	done
 
 	if (( ${#FINDINGS_BY_BASE[@]} )); then

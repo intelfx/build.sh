@@ -265,8 +265,12 @@ declare -A MY_PKG_NAME_FULLNAME
 declare -A MY_PKG_NAME_VER
 # target repo: set of known pkgbase (pkgbase->"1")
 declare -A MY_PKG_BASE_IDX
-# target repo: pkgbase->pkgnames (space-separated)
+# target repo: set of known pkgname (pkgname->"1"), normal and debug packages
+declare -A MY_PKG_NAME_IDX
+declare -A MY_PKG_NAME_IDX_DEBUG
+# target repo: pkgbase->pkgnames (space-separated), normal and debug packages
 declare -A MY_PKG_BASE_NAMES
+declare -A MY_PKG_BASE_NAMES_DEBUG
 
 # official repo: pkgname->pkgbase
 declare -A ARCH_PKG_NAME_BASE
@@ -537,7 +541,17 @@ expac -S '%r %e %n %v' \
 		MY_PKG_NAME_FULLNAME["$pkgname"]="$repo/$pkgname"
 		MY_PKG_NAME_VER["$pkgname"]="$pkgver"
 		MY_PKG_BASE_IDX["$pkgbase"]="1"
-		MY_PKG_BASE_NAMES["$pkgbase"]+=" $pkgname"
+		# *-debug (detached debug symbols) packages are always named
+		# after $pkgbase and do not follow the split
+		# (and never exist on disk)
+		if [[ $pkgname == "$pkgbase-debug" \
+		   && ! ${DISK_PKG_NAME_BASE["$pkgname"]+set} ]]; then
+			MY_PKG_NAME_IDX_DEBUG["$pkgname"]="1"
+			MY_PKG_BASE_NAMES_DEBUG["$pkgbase"]+=" $pkgname"
+		else
+			MY_PKG_NAME_IDX["$pkgname"]="1"
+			MY_PKG_BASE_NAMES["$pkgbase"]+=" $pkgname"
+		fi
 	elif ! in_array "$repo" "${REPO_OFFICIAL[@]}"; then
 		# other custom repositories -- ignore
 		:
@@ -571,7 +585,7 @@ LIBSH_LOG_PREFIX="[AUR]"
 print_array \
 	"${!DISK_PKG_NAME_BASE[@]}" \
 	"${!TARGET_PKG_NAME_BASE[@]}" \
-	"${!MY_PKG_NAME_BASE[@]}" \
+	"${!MY_PKG_NAME_IDX[@]}" \
 | sort -u \
 | readarray -t KNOWN_PKG_NAMES
 
@@ -628,7 +642,9 @@ for base in "${ALL_PKG_BASES[@]}"; do
 	elif (( ! t && d && ! r )); then
 		add_finding disk_orphan "$base" "$base" "${DISK_PKG_BASE_DIR["$base"]}" "${DISK_PKG_BASE_NAMES["$base"]}"
 	elif (( ! t && r )); then
-		add_finding repo_orphan "$base" "$base" "${MY_PKG_BASE_NAMES["$base"]# }" \
+		read -ra names \
+			<<<"${MY_PKG_BASE_NAMES["$base"]} ${MY_PKG_BASE_NAMES_DEBUG["$base"]}"
+		add_finding repo_orphan "$base" "$base" "${names[*]}" \
 			"$(bld_ternary "$d" "${DISK_PKG_BASE_DIR["$base"]-}" no)"
 	fi
 	# (t && d && r) is healthy; nothing to report.
@@ -649,8 +665,6 @@ for base in "${!TARGET_PKG_BASE_IDX[@]}"; do
 		add_finding split_mismatch "$base" "$base" "missing: $pkgname" "built by pkgbase but absent from repo"
 	done
 	for pkgname in "${only_repo[@]}"; do
-		# auto-generated debug packages are never listed in .SRCINFO -> not stale
-		[[ $pkgname == *-debug ]] && continue
 		# pkgnames that moved to another on-disk pkgbase are name_migration, not stale
 		[[ ${DISK_PKG_NAME_BASE["$pkgname"]+set} ]] && continue
 		add_finding split_mismatch "$base" "$base" "stale: $pkgname" "in repo, not built by any on-disk pkgbase"
@@ -658,7 +672,7 @@ for base in "${!TARGET_PKG_BASE_IDX[@]}"; do
 done
 
 # name migration: repo pkgname whose on-disk pkgbase differs from the repo's
-for pkgname in "${!MY_PKG_NAME_BASE[@]}"; do
+for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	disk_base="${DISK_PKG_NAME_BASE["$pkgname"]-}"
 	[[ $disk_base ]] || continue
 	repo_base="${MY_PKG_NAME_BASE["$pkgname"]}"
@@ -737,7 +751,7 @@ done
 #
 # E1. Freshness: repo pkgname vs upstream of the same name (Arch preferred).
 #
-for pkgname in "${!MY_PKG_NAME_VER[@]}"; do
+for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	repover="${MY_PKG_NAME_VER["$pkgname"]}"
 	archver="${ARCH_PKG_NAME_VER["$pkgname"]-}"
 	aurver="${AUR_PKG_NAME_VER["$pkgname"]-}"
@@ -754,7 +768,7 @@ done
 #
 # E2. Fuzzy freshness: strip a VCS suffix and re-run the outdated check (advisory).
 #
-for pkgname in "${!MY_PKG_NAME_VER[@]}"; do
+for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	base_name=
 	for suf in "${VCS_SUFFIXES[@]}"; do
 		if [[ $pkgname == *-"$suf" ]]; then

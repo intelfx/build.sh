@@ -873,12 +873,25 @@ for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	archver="${ARCH_PKG_NAME_VER["$base_name"]-}"
 	aurver="${AUR_PKG_NAME_VER["$base_name"]-}"
 
+	# Custom, Arch and AUR packages often have different epochs due to how many
+	# versioning schemes upstream went through since each package was created.
+	# Likewise, some maintainers are less diligent about stripping "v*" prefixes
+	# from upstream versions. As a result, we might have pairs like
+	# extra/thermald 2:2.5.12-1 vs. custom/thermald-git 2.5.12.r0.g9996a1a-1,
+	# or extra/compsize 1.5-2 vs. aur/compsize-git v1.5.r9.gf2c1c31-1,
+	# which will compare in the wrong direction.
+	#
+	# Attempt to strip all prefixes from versions being compared.
+	repover_s="${repover##?(+([0-9]):)?(v)}"
+	archver_s="${archver##?(+([0-9]):)?(v)}"
+	aurver_s="${aurver##?(+([0-9]):)?(v)}"
+
 	base="${MY_PKG_NAME_BASE["$pkgname"]}"
 	path="${DISK_PKG_BASE_DIR["$base"]-(not found)}"
-	if [[ $archver ]] && vergreater "$archver" "$repover"; then
+	if [[ $archver ]] && vergreater "$archver_s" "$repover_s"; then
 		add_finding outdated_fuzzy "$base" "$base" "$path" \
 			"$pkgname" "$repover" "$archver" "${ARCH_PKG_NAME_FULLNAME["$base_name"]}"
-	elif [[ $aurver ]] && vergreater "$aurver" "$repover"; then
+	elif [[ $aurver ]] && vergreater "$aurver_s" "$repover_s"; then
 		add_finding outdated_fuzzy "$base" "$base" "$path" \
 			"$pkgname" "$repover" "$aurver" "${AUR_PKG_NAME_FULLNAME["$base_name"]}"
 	fi

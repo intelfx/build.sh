@@ -174,22 +174,29 @@ declare -A FINDING_TITLE=(
 	[outdated_fuzzy]="Outdated VCS packages (advisory; pkgver not directly comparable)"
 )
 # category -> tab-separated header row
+#
+# Columns follow a canonical leading order so locators line up across checks:
+#   PKGBASE  PATH  PKGNAME(S)  <check-specific...>
+# PATH (the on-disk PKGBUILD directory, "(not found)" if not found) is present wherever the
+# operator might inspect the source; the in-repo PKGNAMES are present wherever the
+# operator might manipulate the repo. Some checks span two pkgbases, in which case
+# the secondary base/path is named explicitly (DISK_BASE/DISK_PATH) and trails.
 declare -A FINDING_COLS=(
-	[structural]=$'OBJECT\tPROBLEM'
+	[structural]=$'PKGBASE\tPATH\tPROBLEM'
 	[dup_target]=$'PKGBASE\tNOTE'
-	[missing_pkgbuild]=$'PKGBASE\tIN_REPO'
-	[not_built]=$'PKGBASE\tPKGNAMES'
+	[missing_pkgbuild]=$'PKGBASE\tPKGNAMES'
+	[not_built]=$'PKGBASE\tPATH\tPKGNAMES'
 	[disk_orphan]=$'PKGBASE\tPATH\tPKGNAMES'
-	[repo_orphan]=$'PKGBASE\tPKGNAMES\tON_DISK'
-	[split_mismatch]=$'PKGBASE\tDELTA\tNOTE'
-	[name_migration]=$'PKGNAME\tREPO_BASE\tDISK_BASE'
-	[debug_orphan]=$'PKGNAME\tDEBUG_VER\tMISSING_HOST'
-	[debug_mismatch]=$'PKGNAME\tDEBUG_VER\tHOST_VER'
-	[pkgset_arch]=$'PKGBASE\tDELTA\tPROVIDED_BY'
-	[pkgset_aur]=$'PKGNAME\tDISK_BASE\tAUR_BASE'
-	[upstream_mismatch]=$'PKGBASE\tTRACKS\tACTUAL\tNOTE'
-	[outdated]=$'PKGNAME\tREPO_VER\tUPSTREAM_VER\tSOURCE'
-	[outdated_fuzzy]=$'PKGNAME\tREPO_VER\tUPSTREAM_VER\tSOURCE'
+	[repo_orphan]=$'PKGBASE\tPATH\tPKGNAMES'
+	[split_mismatch]=$'PKGBASE\tPATH\tDELTA\tNOTE'
+	[name_migration]=$'PKGBASE\tPKGNAME\tDISK_BASE\tDISK_PATH'
+	[debug_orphan]=$'PKGBASE\tPKGNAME\tDEBUG_VER'
+	[debug_mismatch]=$'PKGBASE\tPKGNAME\tDEBUG_VER\tHOST_VER'
+	[pkgset_arch]=$'PKGBASE\tPATH\tDELTA\tPROVIDED_BY'
+	[pkgset_aur]=$'PKGBASE\tPATH\tPKGNAME\tAUR_BASE'
+	[upstream_mismatch]=$'PKGBASE\tPATH\tPKGNAMES\tTRACKS\tACTUAL\tNOTE'
+	[outdated]=$'PKGBASE\tPATH\tPKGNAME\tREPO_VER\tUPSTREAM_VER\tSOURCE'
+	[outdated_fuzzy]=$'PKGBASE\tPATH\tPKGNAME\tREPO_VER\tUPSTREAM_VER\tSOURCE'
 )
 # render order (also the order checks run)
 declare -a FINDING_ORDER=(
@@ -396,25 +403,25 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 
 	if ! [[ $pkgbase ]]; then
 		err "Bad on-disk pkgbase @ ${dir@Q}: empty pkgbase"
-		add_finding structural "$dir" "$dir" "empty pkgbase"
+		add_finding structural "$pkgbase_expected" "$pkgbase_expected" "$dir" "empty pkgbase"
 		continue
 	fi
 	if ! [[ ${pkgnames+set} ]]; then
 		err "Bad on-disk pkgbase @ ${dir@Q}: no pkgnames"
-		add_finding structural "$pkgbase" "$dir" "no pkgnames"
+		add_finding structural "$pkgbase" "$pkgbase" "$dir" "no pkgnames"
 		continue
 	fi
 
 	if [[ $pkgbase != "$pkgbase_expected" ]]; then
 		# contains $pkgbase twice to simplify reading
 		err "Misplaced on-disk pkgbase ${pkgbase@Q}: path=${dir@Q}, found=${pkgbase@Q}, expected=${pkgbase_expected@Q}"
-		add_finding structural "$pkgbase" "$dir" "misplaced pkgbase: found ${pkgbase@Q}, expected ${pkgbase_expected@Q}"
+		add_finding structural "$pkgbase" "$pkgbase" "$dir" "misplaced pkgbase: found ${pkgbase@Q}, expected ${pkgbase_expected@Q}"
 		continue
 	fi
 	if [[ "${DISK_PKG_BASE_DIR["$pkgbase"]+set}" ]]; then
 		path1="${DISK_PKG_BASE_DIR["$pkgbase"]}"
 		err "Duplicate on-disk pkgbase ${pkgbase@Q}: path1=${path1@Q}, path2=${dir@Q}"
-		add_finding structural "$pkgbase" "$pkgbase" "duplicate pkgbase: also at ${path1@Q}"
+		add_finding structural "$pkgbase" "$pkgbase" "$dir" "duplicate pkgbase: also at ${path1@Q}"
 		continue
 	fi
 	for pkgname in "${pkgnames[@]}"; do
@@ -422,7 +429,7 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 			path1="${DISK_PKG_NAME_DIR["$pkgname"]}"
 			pkgbase1="${DISK_PKG_DIR_BASE["$path1"]}"
 			err "Duplicate on-disk pkgname ${pkgname@Q}: pkgbase1=$pkgbase1 @ ${path1@Q}, pkgbase2=$pkgbase @ ${dir@Q}"
-			add_finding structural "$pkgbase" "$pkgbase" "duplicate pkgname ${pkgname@Q}: also in pkgbase ${pkgbase1@Q}"
+			add_finding structural "$pkgbase" "$pkgbase" "$dir" "duplicate pkgname ${pkgname@Q}: also in pkgbase ${pkgbase1@Q}"
 			continue
 		fi
 	done
@@ -430,7 +437,7 @@ for dir in "${DISK_PKG_DIRS[@]}"; do
 	if [[ -e "$dir/.git" ]]; then
 		if ! git -C "$dir" rev-parse --verify --quiet HEAD &>/dev/null; then
 			err "Invalid git directory @ ${dir@Q}"
-			add_finding structural "$pkgbase" "$dir" "invalid git directory (no HEAD)"
+			add_finding structural "$pkgbase" "$pkgbase" "$dir" "invalid git directory (no HEAD)"
 			continue
 		fi
 
@@ -625,6 +632,13 @@ names_of() {
 	read -ra "${2:?}" <<<"${_map["$3"]-}"
 }
 
+# Helper: all in-repo pkgnames of a pkgbase (normal + debug) into array $1,
+# whitespace-collapsed; empty if the pkgbase is not in the repo.
+repo_names_of() {
+	read -ra "${1:?}" \
+		<<<"${MY_PKG_BASE_NAMES["$2"]-} ${MY_PKG_BASE_NAMES_DEBUG["$2"]-}"
+}
+
 #
 # B. Coverage: classify every known pkgbase by (Target, Disk, Repo) presence.
 #
@@ -642,17 +656,21 @@ for base in "${ALL_PKG_BASES[@]}"; do
 	r="${MY_PKG_BASE_IDX["$base"]+1}"
 
 	if (( t )) && (( ! d )); then
-		# targeted but no PKGBUILD on disk -> cannot build
-		add_finding missing_pkgbuild "$base" "$base" "$(bld_ternary "$r" yes no)"
+		# targeted but no PKGBUILD on disk -> cannot build.
+		# No PATH column (there is no source); show in-repo pkgnames (if any),
+		# which is what the operator would prune if the target is abandoned.
+		repo_names_of names "$base"
+		add_finding missing_pkgbuild "$base" "$base" "${names[*]}"
 	elif (( t && d && ! r )); then
-		add_finding not_built "$base" "$base" "${DISK_PKG_BASE_NAMES["$base"]}"
+		add_finding not_built "$base" "$base" \
+			"${DISK_PKG_BASE_DIR["$base"]}" "${DISK_PKG_BASE_NAMES["$base"]}"
 	elif (( ! t && d && ! r )); then
-		add_finding disk_orphan "$base" "$base" "${DISK_PKG_BASE_DIR["$base"]}" "${DISK_PKG_BASE_NAMES["$base"]}"
+		add_finding disk_orphan "$base" "$base" \
+			"${DISK_PKG_BASE_DIR["$base"]}" "${DISK_PKG_BASE_NAMES["$base"]}"
 	elif (( ! t && r )); then
-		read -ra names \
-			<<<"${MY_PKG_BASE_NAMES["$base"]} ${MY_PKG_BASE_NAMES_DEBUG["$base"]}"
-		add_finding repo_orphan "$base" "$base" "${names[*]}" \
-			"$(bld_ternary "$d" "${DISK_PKG_BASE_DIR["$base"]-}" no)"
+		repo_names_of names "$base"
+		add_finding repo_orphan "$base" "$base" \
+			"${DISK_PKG_BASE_DIR["$base"]-(not found)}" "${names[*]}"
 	fi
 	# (t && d && r) is healthy; nothing to report.
 done
@@ -669,12 +687,14 @@ for base in "${!TARGET_PKG_BASE_IDX[@]}"; do
 	set_difference_a rnames dnames only_repo
 
 	for pkgname in "${only_disk[@]}"; do
-		add_finding split_mismatch "$base" "$base" "missing: $pkgname" "built by pkgbase but absent from repo"
+		add_finding split_mismatch "$base" "$base" "${DISK_PKG_BASE_DIR["$base"]}" \
+			"missing: $pkgname" "built by pkgbase but absent from repo"
 	done
 	for pkgname in "${only_repo[@]}"; do
 		# pkgnames that moved to another on-disk pkgbase are name_migration, not stale
 		[[ ${DISK_PKG_NAME_BASE["$pkgname"]+set} ]] && continue
-		add_finding split_mismatch "$base" "$base" "stale: $pkgname" "in repo, not built by any on-disk pkgbase"
+		add_finding split_mismatch "$base" "$base" "${DISK_PKG_BASE_DIR["$base"]}" \
+			"stale: $pkgname" "in repo, not built by any on-disk pkgbase"
 	done
 done
 
@@ -684,7 +704,10 @@ for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	[[ $disk_base ]] || continue
 	repo_base="${MY_PKG_NAME_BASE["$pkgname"]}"
 	[[ $disk_base != "$repo_base" ]] || continue
-	add_finding name_migration "$repo_base" "$pkgname" "$repo_base" "$disk_base"
+	# PKGBASE is where the pkgname lives in the repo; DISK_BASE/DISK_PATH point at
+	# the on-disk pkgbase that now builds it (the rebuild target to catch up).
+	add_finding name_migration "$repo_base" "$repo_base" "$pkgname" \
+		"$disk_base" "${DISK_PKG_BASE_DIR["$disk_base"]}"
 done
 
 #
@@ -701,9 +724,10 @@ for pkgname in "${!MY_PKG_NAME_IDX_DEBUG[@]}"; do
 	read -ra hosts <<<"${MY_PKG_BASE_NAMES["$pkgbase"]}"
 
 	if ! [[ ${hosts+set} ]]; then
-		add_finding debug_orphan "$pkgbase" "$pkgname" "$debug_ver" "$pkgbase"
+		add_finding debug_orphan "$pkgbase" "$pkgbase" "$pkgname" "$debug_ver"
 	elif [[ $debug_ver != "${MY_PKG_NAME_VER["$hosts"]}" ]]; then
-		add_finding debug_mismatch "$pkgbase" "$pkgname" "$debug_ver" "${MY_PKG_NAME_VER["$hosts"]}"
+		add_finding debug_mismatch "$pkgbase" "$pkgbase" "$pkgname" \
+			"$debug_ver" "${MY_PKG_NAME_VER["$hosts"]}"
 	fi
 done
 
@@ -718,16 +742,17 @@ for base in "${!DISK_PKG_BASE_DIR[@]}"; do
 	set_difference_a dnames anames only_disk
 	set_difference_a anames dnames only_arch
 
+	dir="${DISK_PKG_BASE_DIR["$base"]}"
 	for pkgname in "${only_arch[@]}"; do
 		# arch ships pkgname under this pkgbase; do we build it (under any pkgbase)?
 		prov="${DISK_PKG_NAME_BASE["$pkgname"]-}"
-		add_finding pkgset_arch "$base" "$base" "+arch: $pkgname" \
+		add_finding pkgset_arch "$base" "$base" "$dir" "+arch: $pkgname" \
 			"$(bld_ternary "$prov" "we build it as $prov" "not built by us")"
 	done
 	for pkgname in "${only_disk[@]}"; do
 		# we build pkgname under this pkgbase; where does arch put it, if anywhere?
 		prov="${ARCH_PKG_NAME_BASE["$pkgname"]-}"
-		add_finding pkgset_arch "$base" "$base" "-arch: $pkgname" \
+		add_finding pkgset_arch "$base" "$base" "$dir" "-arch: $pkgname" \
 			"$(bld_ternary "$prov" "arch ships it as $prov" "not in arch")"
 	done
 done
@@ -741,7 +766,8 @@ for pkgname in "${!DISK_PKG_NAME_BASE[@]}"; do
 	[[ $aur_base ]] || continue
 	disk_base="${DISK_PKG_NAME_BASE["$pkgname"]}"
 	[[ $aur_base != "$disk_base" ]] || continue
-	add_finding pkgset_aur "$disk_base" "$pkgname" "$disk_base" "$aur_base"
+	add_finding pkgset_aur "$disk_base" "$disk_base" \
+		"${DISK_PKG_BASE_DIR["$disk_base"]}" "$pkgname" "$aur_base"
 done
 
 #
@@ -772,7 +798,11 @@ for base in "${!DISK_PKG_BASE_DIR[@]}"; do
 		else                     note="gone from Arch (deleted/renamed upstream)"
 		fi
 	fi
-	add_finding upstream_mismatch "$base" "$base" "$head" "$actual" "$note"
+	# Include in-repo pkgnames: when upstream moved (e.g. AUR->Arch adoption) the
+	# operator typically drops these from the custom repo, which needs pkgnames.
+	repo_names_of names "$base"
+	add_finding upstream_mismatch "$base" "$base" "$dir" "${names[*]}" \
+		"$head" "$actual" "$note"
 done
 
 #
@@ -783,11 +813,13 @@ for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	archver="${ARCH_PKG_NAME_VER["$pkgname"]-}"
 	aurver="${AUR_PKG_NAME_VER["$pkgname"]-}"
 
+	base="${MY_PKG_NAME_BASE["$pkgname"]}"
+	path="${DISK_PKG_BASE_DIR["$base"]-(not found)}"
 	if [[ $archver ]] && vergreater "$archver" "$repover"; then
-		add_finding outdated "${MY_PKG_NAME_BASE["$pkgname"]}" \
+		add_finding outdated "$base" "$base" "$path" \
 			"$pkgname" "$repover" "$archver" "${ARCH_PKG_NAME_FULLNAME["$pkgname"]}"
 	elif [[ $aurver ]] && vergreater "$aurver" "$repover"; then
-		add_finding outdated "${MY_PKG_NAME_BASE["$pkgname"]}" \
+		add_finding outdated "$base" "$base" "$path" \
 			"$pkgname" "$repover" "$aurver" "${AUR_PKG_NAME_FULLNAME["$pkgname"]}"
 	fi
 done
@@ -809,11 +841,13 @@ for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	archver="${ARCH_PKG_NAME_VER["$base_name"]-}"
 	aurver="${AUR_PKG_NAME_VER["$base_name"]-}"
 
+	base="${MY_PKG_NAME_BASE["$pkgname"]}"
+	path="${DISK_PKG_BASE_DIR["$base"]-(not found)}"
 	if [[ $archver ]] && vergreater "$archver" "$repover"; then
-		add_finding outdated_fuzzy "${MY_PKG_NAME_BASE["$pkgname"]}" \
+		add_finding outdated_fuzzy "$base" "$base" "$path" \
 			"$pkgname" "$repover" "$archver" "${ARCH_PKG_NAME_FULLNAME["$base_name"]}"
 	elif [[ $aurver ]] && vergreater "$aurver" "$repover"; then
-		add_finding outdated_fuzzy "${MY_PKG_NAME_BASE["$pkgname"]}" \
+		add_finding outdated_fuzzy "$base" "$base" "$path" \
 			"$pkgname" "$repover" "$aurver" "${AUR_PKG_NAME_FULLNAME["$base_name"]}"
 	fi
 done

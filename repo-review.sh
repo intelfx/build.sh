@@ -147,6 +147,8 @@ declare -A FINDING_SEVERITY=(
 	[repo_orphan]=warning
 	[split_mismatch]=warning
 	[name_migration]=warning
+	[debug_orphan]=warning
+	[debug_mismatch]=warning
 	[pkgset_arch]=warning
 	[pkgset_aur]=warning
 	[upstream_mismatch]=warning
@@ -163,6 +165,8 @@ declare -A FINDING_TITLE=(
 	[repo_orphan]="Package orphans (in repo, not targeted)"
 	[split_mismatch]="Split-package drift (disk vs repo)"
 	[name_migration]="pkgname migrated between pkgbases (repo behind disk)"
+	[debug_orphan]="Orphan debug packages (host pkgname not in repo)"
+	[debug_mismatch]="Stale debug packages (version differs from host)"
 	[pkgset_arch]="pkgname-set mismatch vs Arch"
 	[pkgset_aur]="pkgname provider mismatch vs AUR"
 	[upstream_mismatch]="Upstream tracking mismatch"
@@ -179,6 +183,8 @@ declare -A FINDING_COLS=(
 	[repo_orphan]=$'PKGBASE\tPKGNAMES\tON_DISK'
 	[split_mismatch]=$'PKGBASE\tDELTA\tNOTE'
 	[name_migration]=$'PKGNAME\tREPO_BASE\tDISK_BASE'
+	[debug_orphan]=$'PKGNAME\tDEBUG_VER\tMISSING_HOST'
+	[debug_mismatch]=$'PKGNAME\tDEBUG_VER\tHOST_VER'
 	[pkgset_arch]=$'PKGBASE\tDELTA\tPROVIDED_BY'
 	[pkgset_aur]=$'PKGNAME\tDISK_BASE\tAUR_BASE'
 	[upstream_mismatch]=$'PKGBASE\tTRACKS\tACTUAL\tNOTE'
@@ -189,6 +195,7 @@ declare -A FINDING_COLS=(
 declare -a FINDING_ORDER=(
 	structural dup_target missing_pkgbuild not_built
 	disk_orphan repo_orphan split_mismatch name_migration
+	debug_orphan debug_mismatch
 	pkgset_arch pkgset_aur upstream_mismatch outdated outdated_fuzzy
 )
 
@@ -678,6 +685,26 @@ for pkgname in "${!MY_PKG_NAME_IDX[@]}"; do
 	repo_base="${MY_PKG_NAME_BASE["$pkgname"]}"
 	[[ $disk_base != "$repo_base" ]] || continue
 	add_finding name_migration "$repo_base" "$pkgname" "$repo_base" "$disk_base"
+done
+
+#
+# F. Debug-package consistency (repo-internal). A `$pkgbase-debug` is a derived
+#    artifact (not in .SRCINFO). It is always named after $pkgbase (not split),
+#    and must be identical in version to other pkgnames.
+#
+#    (We do not flag a *missing* debug package: it is not required that each
+#     package is built with options=(debug).)
+#
+for pkgname in "${!MY_PKG_NAME_IDX_DEBUG[@]}"; do
+	pkgbase="${MY_PKG_NAME_BASE["$pkgname"]}"
+	debug_ver="${MY_PKG_NAME_VER["$pkgname"]}"
+	read -ra hosts <<<"${MY_PKG_BASE_NAMES["$pkgbase"]}"
+
+	if ! [[ ${hosts+set} ]]; then
+		add_finding debug_orphan "$pkgbase" "$pkgname" "$debug_ver" "$pkgbase"
+	elif [[ $debug_ver != "${MY_PKG_NAME_VER["$hosts"]}" ]]; then
+		add_finding debug_mismatch "$pkgbase" "$pkgname" "$debug_ver" "${MY_PKG_NAME_VER["$hosts"]}"
+	fi
 done
 
 #
